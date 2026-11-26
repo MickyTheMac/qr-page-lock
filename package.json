@@ -3,24 +3,37 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-pdf-worker.cjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-pdf-worker.cjs",
     "build": "next build",
-    "start": "next start",
+    "start": "npx serve@14.2.4 out",
+    "test": "vitest run",
+    "fixtures": "tsx scripts/build-fixtures.cts",
     "lint": "eslint"
   },
   "dependencies": {
+    "jsqr": "1.4.0",
     "next": "16.4.6",
+    "pako": "2.1.0",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.5.438",
+    "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
-    "@types/node": "^20",
+    "@types/node": "22.20.7",
+    "@types/pako": "2.0.4",
+    "@types/qrcode": "1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
-    "typescript": "^5"
+    "tsx": "4.23.15",
+    "typescript": "^5",
+    "vitest": "5.1.2"
   }
 }
