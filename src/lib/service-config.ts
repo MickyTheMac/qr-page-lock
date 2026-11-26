@@ -4,10 +4,11 @@
  * - Without it (local dev and the try-out link): a DEMO service that runs inside this browser tab, keeps its keys in
  *   this browser's storage, and shows email codes on screen. It is clearly marked as a demo everywhere.
  */
-import { LogEntry, MemoryStore, PageLockClient, PageLockService, ServiceStore, inPageFetch } from "@/lib/pagelock";
+import { LogEntry, MemoryStore, MemoryVaultStore, PageLockClient, PageLockService, ServiceStore, VaultClient, VaultService, inPageFetch } from "@/lib/pagelock";
 
 export interface ActiveService {
   client: PageLockClient;
+  vault: VaultClient;
   demo: boolean;
   label: string;
   url: string;
@@ -51,16 +52,20 @@ let active: Promise<ActiveService> | null = null;
 
 export function getService(): Promise<ActiveService> {
   active ??= (async () => {
-    if (CONFIGURED) return { client: new PageLockClient(CONFIGURED), demo: false, label: "PageLock service", url: CONFIGURED };
+    if (CONFIGURED) return { client: new PageLockClient(CONFIGURED), vault: new VaultClient(CONFIGURED), demo: false, label: "PageLock service", url: CONFIGURED };
+    const mailer = { send: async () => undefined };
+    // DEMO vault: lives in this tab's memory only, so it empties when the page is reloaded.
+    const vault = await VaultService.create({ store: new MemoryVaultStore(), mailer, exposeCodes: true });
     const service = await PageLockService.create({
+      vault,
       store: new LocalStore(),
-      mailer: { send: async () => undefined },
+      mailer,
       exposeCodes: true,
       demo: true,
       authorityName: "PageLock DEMO",
     });
     const url = "https://demo.pagelock.invalid";
-    return { client: new PageLockClient(url, inPageFetch(service)), demo: true, label: "Demo service (runs in this browser only)", url };
+    return { client: new PageLockClient(url, inPageFetch(service)), vault: new VaultClient(url, inPageFetch(service)), demo: true, label: "Demo service (runs in this browser only)", url };
   })();
   return active;
 }

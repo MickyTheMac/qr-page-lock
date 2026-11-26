@@ -85,6 +85,8 @@ export interface ServiceConfig {
   /** Marks the trust file as DEMO (for the in-browser try-out, whose keys live in the browser). */
   demo?: boolean;
   now?: () => Date;
+  /** Optional: the encrypted document vault (email-code login + locked documents), served at /api/auth and /api/vault. */
+  vault?: { handle(req: Request, cors: Record<string, string>): Promise<Response | null> };
 }
 
 interface StoredKeys {
@@ -465,6 +467,10 @@ export class PageLockService {
     const json = (status: number, body: unknown) =>
       new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+    if (this.cfg.vault) {
+      const r = await this.cfg.vault.handle(req, cors);
+      if (r) return r;
+    }
     const url = new URL(req.url);
     const path = url.pathname.replace(/\/+$/, "");
     const body = async () => {

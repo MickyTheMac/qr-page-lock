@@ -1,7 +1,7 @@
 # PageLock — every page accounted for
 
 Prototype (Phases 1 and 2). A privacy-first web app that makes multi-page agreements tamper-evident.
-Documents never leave the browser. Signing uses a small PageLock service for certificates, timestamps and the
+Documents never leave the browser unlocked. Signing uses a small PageLock service for certificates, timestamps and the
 sign-off log, which only ever sees fingerprints and hashes.
 
 - **Create**: choose a PDF → PageLock gives it a random document ID, fingerprints every page (SHA-256),
@@ -13,6 +13,9 @@ sign-off log, which only ever sees fingerprints and hashes.
 - **Sign**: each founder reads every page, ticks two consent boxes and adds a PAdES signature (with a trusted
   timestamp). Then they record the sign-off in the log: founder B's entry countersigns founder A's ("signed, then
   double signed"). Only the fingerprint and sign-off time are public.
+- **Vault**: log in with an email code (no password) and save sealed agreements so either signer can get them back
+  later. Each file is locked on the device (AES-256, post-quantum X-Wing key sharing) before upload, so PageLock
+  cannot open it. A printed 24-word recovery sheet or a passkey unlocks it on a new device. See `docs/VAULT.md`.
 - **VERIFIED** appears when every page checks out and both founders' signatures are valid, trusted and timestamped.
   Verify can also download an **evidence report** PDF listing every check.
 
@@ -40,11 +43,13 @@ npm run build:standalone  # whole app as one HTML file in ./dist-standalone (use
 | `src/lib/pagelock/` | The protocol: page representation, hashing, QR payload, footer, manifest, create, verify |
 | `src/lib/pagelock/sign/` | PAdES signing and validation, certificates, timestamps, trust files |
 | `src/lib/pagelock/service/` | PageLock service (certificates, timestamps, sign-off log) and its browser client |
-| `server/` | Node entry point for the service |
-| `src/app/` | Home, Create, Sign and Verify screens |
+| `src/lib/pagelock/vault/` | The vault: on-device locking, the vault service (login, locked storage) and its client |
+| `server/` | Node entry point for the service, Postgres stores |
+| `src/app/` | Home, Create, Sign, Verify and Vault screens |
 | `tests/` | Acceptance tests (brief §12) and tampering helpers |
 | `fixtures/` | Sample agreement, sealed copy, reference file and 14 tampered variants with expected results |
 | `docs/PROTOCOL.md` | Protocol v1 in detail, design decisions and known limits |
+| `docs/VAULT.md` | The vault: what is stored, keys, flows, limits |
 | `docs/ROADMAP.md` | Phase 2/3 notes, including the "scan, agree and log" idea |
 
 Pinned dependencies (exact versions): Next.js 16.4.6, pdf-lib 1.17.1, pdfjs-dist 6.5.438, qrcode 1.5.4, jsQR 1.4.0,

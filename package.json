@@ -16,6 +16,9 @@
     "test:pg": "vitest run --no-file-parallelism"
   },
   "dependencies": {
+    "@noble/hashes": "2.0.1",
+    "@noble/post-quantum": "0.7.1",
+    "@scure/bip39": "2.0.1",
     "asn1js": "3.0.10",
     "jsqr": "1.4.0",
     "next": "16.4.6",
