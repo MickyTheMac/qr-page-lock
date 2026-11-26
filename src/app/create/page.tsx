@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { FileDrop } from "@/components/FileDrop";
 import { PdfPreview } from "@/components/PdfPreview";
+import { DownloadIcon, EyeIcon, FileSealIcon, KeyIcon, QrIcon, ReceiptIcon, SparkIcon, SpinnerIcon, UploadIcon } from "@/components/icons";
+import { Notice, PageHeader, Step, btnPrimary, card, linkBtn } from "@/components/ui";
 import { baseName, download, readFile } from "@/lib/download";
 import { makeSampleAgreement } from "@/lib/demo";
 import {
@@ -65,122 +67,164 @@ export default function CreatePage() {
 
   const name = file ? baseName(file.name) : "document";
 
+  const downloads = result
+    ? [
+        {
+          Icon: FileSealIcon,
+          label: "Download the sealed PDF",
+          text: "Share this with the other founder.",
+          go: () => download(result.pdfBytes, `${name}.pagelock.pdf`, "application/pdf"),
+          primary: true,
+        },
+        {
+          Icon: KeyIcon,
+          label: "Download the reference file",
+          text: "Keep it somewhere safe. This is what proves a copy is genuine later.",
+          go: () => download(serializeManifestFile(result.manifest), `${name}.pagelock-reference.json`, "application/json"),
+        },
+        {
+          Icon: ReceiptIcon,
+          label: "Download the receipt",
+          text: "Email it to both founders, so each of you holds an independent copy of the digest.",
+          go: () => download(receiptText(result, name), `${name}.pagelock-receipt.txt`, "text/plain"),
+        },
+      ]
+    : [];
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Create a sealed copy</h1>
-        <p className="mt-1 text-neutral-600">
-          PageLock adds a 1.5-inch band below each page with a QR seal. Your original page content is not moved or covered.
-        </p>
-      </div>
+      <PageHeader icon={<FileSealIcon size={24} />} title="Create a sealed copy">
+        PageLock adds a 1.5-inch band below each page with a QR seal. Your original page content is not moved or covered.
+      </PageHeader>
 
-      <FileDrop
-        label="Choose or drop the agreement PDF"
-        hint="Up to 25 MB and 300 pages. Plain PDFs only: no form fields, comments or scripts."
-        accept="application/pdf,.pdf"
-        file={file}
-        onFile={(f) => {
-          setFile(f);
-          setResult(null);
-          setError(null);
-        }}
-      />
-
-      <p className="-mt-4 text-sm text-neutral-600">
-        No PDF to hand?{" "}
-        <button
-          className="font-medium underline"
-          onClick={async () => {
-            const bytes = await makeSampleAgreement(3);
-            setFile(new File([bytes as BlobPart], "sample-founders-agreement.pdf", { type: "application/pdf" }));
+      <Step n={1} icon={<UploadIcon size={18} />} title="Choose the agreement" hint="A PDF on this device. It is never uploaded." done={!!file}>
+        <FileDrop
+          label="Choose or drop the agreement PDF"
+          hint="Up to 25 MB and 300 pages. Plain PDFs only: no form fields, comments or scripts."
+          accept="application/pdf,.pdf"
+          file={file}
+          onFile={(f) => {
+            setFile(f);
             setResult(null);
             setError(null);
           }}
-        >
-          Use a sample founders&apos; agreement
+        />
+        <p className="flex items-center gap-1.5 text-sm text-slate-600">
+          <SparkIcon size={16} className="text-indigo-500" />
+          No PDF to hand?{" "}
+          <button
+            className={linkBtn}
+            onClick={async () => {
+              const bytes = await makeSampleAgreement(3);
+              setFile(new File([bytes as BlobPart], "sample-founders-agreement.pdf", { type: "application/pdf" }));
+              setResult(null);
+              setError(null);
+            }}
+          >
+            Use a sample founders&apos; agreement
+          </button>
+        </p>
+      </Step>
+
+      <Step n={2} icon={<QrIcon size={18} />} title="Seal every page" hint="Adds a QR seal to each page and checks the result straight away." done={!!result}>
+        <button onClick={seal} disabled={!file || busy} className={`${btnPrimary} w-full sm:w-auto`}>
+          {busy ? <SpinnerIcon size={18} /> : <QrIcon size={18} />}
+          {busy ? "Sealing…" : "Seal every page"}
         </button>
-      </p>
-
-      <button
-        onClick={seal}
-        disabled={!file || busy}
-        className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40"
-      >
-        {busy ? "Sealing…" : "Seal every page"}
-      </button>
-
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
-          <strong>Could not seal this PDF.</strong> {error}
-        </div>
-      )}
+        {error && (
+          <Notice tone="error" title="Could not seal this PDF.">
+            {error}
+          </Notice>
+        )}
+      </Step>
 
       {result && (
         <div className="space-y-8">
-          <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-            <div className="text-sm font-semibold text-emerald-900">
-              Sealed {result.manifest.body.pageCount} page{result.manifest.body.pageCount === 1 ? "" : "s"} · self-check: {selfCheck}
+          <section className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-5 shadow-sm sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 12l5 5 9-10" />
+                </svg>
+              </span>
+              <div className="min-w-0">
+                <div className="text-lg font-bold text-emerald-950">All sealed</div>
+                <div className="text-sm font-medium text-emerald-800">
+                  Sealed {result.manifest.body.pageCount} page{result.manifest.body.pageCount === 1 ? "" : "s"} · self-check: {selfCheck}
+                </div>
+              </div>
             </div>
-            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-[10rem_1fr]">
-              <dt className="text-neutral-600">Document ID</dt>
-              <dd className="font-mono">{groupDocId(result.documentId)}</dd>
-              <dt className="text-neutral-600">Manifest digest</dt>
-              <dd className="break-all font-mono text-xs">{result.manifest.manifestDigest}</dd>
+            <dl className="mt-4 grid gap-x-4 gap-y-2 rounded-xl bg-white/70 p-4 text-sm ring-1 ring-emerald-100 sm:grid-cols-[10rem_1fr]">
+              <dt className="text-slate-500">Document ID</dt>
+              <dd className="font-mono font-semibold text-slate-900">{groupDocId(result.documentId)}</dd>
+              <dt className="text-slate-500">Manifest digest</dt>
+              <dd className="break-all font-mono text-xs text-slate-700">{result.manifest.manifestDigest}</dd>
             </dl>
           </section>
 
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Next steps</h2>
-            <ol className="list-decimal space-y-2 pl-5 text-sm text-neutral-800">
-              <li>
-                <button className="font-medium underline" onClick={() => download(result.pdfBytes, `${name}.pagelock.pdf`, "application/pdf")}>
-                  Download the sealed PDF
-                </button>{" "}
-                and share it with the other founder.
-              </li>
-              <li>
-                <button
-                  className="font-medium underline"
-                  onClick={() => download(serializeManifestFile(result.manifest), `${name}.pagelock-reference.json`, "application/json")}
-                >
-                  Download the reference file
-                </button>{" "}
-                and keep it somewhere safe. This is what proves a copy is genuine later.
-              </li>
-              <li>
-                <button className="font-medium underline" onClick={() => download(receiptText(result, name), `${name}.pagelock-receipt.txt`, "text/plain")}>
-                  Download the receipt
-                </button>{" "}
-                and email it to both founders, so each of you holds an independent copy of the digest.
-              </li>
+          <section className="space-y-4">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+              <DownloadIcon size={20} className="text-indigo-600" /> Next steps
+            </h2>
+            <ol className="grid gap-3 sm:grid-cols-3">
+              {downloads.map(({ Icon, label, text, go, primary }, i) => (
+                <li key={label} className={`${card} flex flex-col gap-3 !p-5`}>
+                  <div className="flex items-center gap-3">
+                    <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${primary ? "bg-indigo-600 text-white" : "bg-indigo-50 text-indigo-600"}`}>
+                      <Icon size={20} />
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Step {i + 1}</span>
+                  </div>
+                  <p className="flex-1 text-sm text-slate-600">{text}</p>
+                  <button
+                    className={
+                      primary
+                        ? `${btnPrimary} !py-2.5`
+                        : "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 transition hover:border-indigo-400 hover:text-indigo-700"
+                    }
+                    onClick={go}
+                  >
+                    <DownloadIcon size={16} />
+                    {label}
+                  </button>
+                </li>
+              ))}
             </ol>
           </section>
 
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Page fingerprints</h2>
-            <table className="w-full text-left text-sm">
-              <thead className="text-neutral-500">
-                <tr>
-                  <th className="py-1 pr-4 font-normal">Page</th>
-                  <th className="py-1 pr-4 font-normal">Short fingerprint</th>
-                  <th className="py-1 font-normal">Full SHA-256</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.pages.map((p) => (
-                  <tr key={p.index} className="border-t border-neutral-200">
-                    <td className="py-1.5 pr-4">{p.index}</td>
-                    <td className="py-1.5 pr-4 font-mono">{shortFingerprint(p.hash)}</td>
-                    <td className="break-all py-1.5 font-mono text-xs text-neutral-500">{p.hash}</td>
+          <section className={`${card} space-y-3`}>
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+              <KeyIcon size={20} className="text-indigo-600" /> Page fingerprints
+            </h2>
+            <div className="-mx-1 overflow-x-auto px-1">
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-wider text-slate-400">
+                  <tr>
+                    <th className="py-2 pr-4 font-semibold">Page</th>
+                    <th className="py-2 pr-4 font-semibold">Short fingerprint</th>
+                    <th className="hidden py-2 font-semibold sm:table-cell">Full SHA-256</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="text-xs text-neutral-500">The short fingerprint is for people to compare by eye. The checks always use the full one.</p>
+                </thead>
+                <tbody>
+                  {result.pages.map((p) => (
+                    <tr key={p.index} className="border-t border-slate-100">
+                      <td className="py-2 pr-4 font-medium">{p.index}</td>
+                      <td className="py-2 pr-4">
+                        <span className="rounded-md bg-indigo-50 px-2 py-0.5 font-mono text-indigo-800">{shortFingerprint(p.hash)}</span>
+                      </td>
+                      <td className="hidden break-all py-2 font-mono text-xs text-slate-500 sm:table-cell">{p.hash}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-slate-500">The short fingerprint is for people to compare by eye. The checks always use the full one.</p>
           </section>
 
-          <section className="space-y-3">
-            <h2 className="text-lg font-semibold">Preview</h2>
+          <section className="space-y-4">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
+              <EyeIcon size={20} className="text-indigo-600" /> Preview
+            </h2>
             <PdfPreview bytes={result.pdfBytes} scanTest />
           </section>
         </div>
