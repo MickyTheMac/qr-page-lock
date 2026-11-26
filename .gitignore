@@ -42,3 +42,4 @@ next-env.d.ts
 public/pdf.worker.min.mjs
 e2e-screenshots/
 dist-standalone/
+server-data/
