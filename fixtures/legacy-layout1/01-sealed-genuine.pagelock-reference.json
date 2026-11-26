@@ -1,0 +1,36 @@
+{
+  "pagelockManifest": 1,
+  "body": {
+    "type": "pagelock-manifest",
+    "protocol": "PL1",
+    "pageRepresentation": "PL1-PAGE",
+    "hashAlgorithm": "SHA-256",
+    "documentId": "7K3MQ2XR9VDF4HNC8WBT6JZP",
+    "createdAt": "2026-11-26T09:00:00.000Z",
+    "pageCount": 3,
+    "sourcePdfSha256": "E7FAE8828D7B343781204389AB49E03D35AF843B3E3938E58C0543E0BFD8D8FB",
+    "pages": [
+      {
+        "index": 1,
+        "hash": "2420DB4F6A19820044F12CC494B131F2C33C8080322A45AFC153482F11B08218",
+        "prev": "START",
+        "next": "1464367D547241FA2F101AF82E893CA52D775C1F61D70F44A8F9ED373286673E"
+      },
+      {
+        "index": 2,
+        "hash": "1464367D547241FA2F101AF82E893CA52D775C1F61D70F44A8F9ED373286673E",
+        "prev": "2420DB4F6A19820044F12CC494B131F2C33C8080322A45AFC153482F11B08218",
+        "next": "05607693F99C385D3C75FC0B39AF0565038C4E83D3E722026189935D52A3A2DD"
+      },
+      {
+        "index": 3,
+        "hash": "05607693F99C385D3C75FC0B39AF0565038C4E83D3E722026189935D52A3A2DD",
+        "prev": "1464367D547241FA2F101AF82E893CA52D775C1F61D70F44A8F9ED373286673E",
+        "next": "END"
+      }
+    ]
+  },
+  "manifestDigest": "5749642B3CE72AC3D259F6EF9C73E0D0D1D6D2DD49C2FE1A4A72E5DDA3892630",
+  "preparedPdfSha256": "F2245079357F5BA917B7D4F72D95210235B2651C9078B979F94DA24C67D548A6",
+  "keepSafe": "Keep this file (or at least the manifestDigest) somewhere the other party cannot change. It is your trusted reference for verifying the agreement later."
+}

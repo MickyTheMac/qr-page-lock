@@ -28,12 +28,21 @@ reported as altered). PDF.js is still pinned and used for previews and the "QR s
 The original page is never modified, moved or covered. Each sealed page is exactly:
 
 ```
-MediaBox = CropBox = [0 0 W H+72]      Rotate 0, no annotations, no other page data
-Contents = "q 1 0 0 1 -llx 72-lly cm /PLOrig Do Q\nq /PLFoot Do Q\n"
+MediaBox = CropBox = [0 0 W H+F]        Rotate 0, no annotations, no other page data
+Contents = "q 1 0 0 1 -llx F-lly cm /PLOrig Do Q\nq /PLFoot Do Q\n"
 PLOrig   = form XObject: BBox = original box, Resources = original resources, content = original content
-PLFoot   = form XObject: BBox [0 0 W 72] (clips everything to the footer band)
+PLFoot   = form XObject: BBox [0 0 W F] (clips everything to the footer band)
            Helvetica text + 1-bit QR image (PLQR)
 ```
+
+`F` is the footer band height, which identifies the footer layout:
+
+| Layout | F | Notes |
+| --- | --- | --- |
+| 2 (current) | 108 pt (1.5 in) | Nothing drawn in the bottom 0.5 in or within 0.5 in of the sides, so a printer's unprintable margin cannot cut off the QR code or text. "Page x of y" appears once, right-aligned just below the separator line. |
+| 1 | 72 pt (1 in) | Original layout. The QR code came within ~0.05 in of the bottom edge. Still accepted by the verifier so documents sealed with it keep verifying. |
+
+All pages in one document must use the same layout. Layout changes do not change page fingerprints, the QR payload or the manifest.
 
 The verifier checks this structure byte-for-byte, so nothing can be drawn over the original and the footer
 cannot spill onto it. The footer text is regenerated from the QR payload and compared exactly.

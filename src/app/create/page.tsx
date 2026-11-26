@@ -70,7 +70,7 @@ export default function CreatePage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Create a sealed copy</h1>
         <p className="mt-1 text-neutral-600">
-          PageLock adds a 1-inch band below each page with a QR seal. Your original page content is not moved or covered.
+          PageLock adds a 1.5-inch band below each page with a QR seal. Your original page content is not moved or covered.
         </p>
       </div>
 

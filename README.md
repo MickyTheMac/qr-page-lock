@@ -5,7 +5,7 @@ Documents never leave the browser. Signing uses a small PageLock service for cer
 sign-off log, which only ever sees fingerprints and hashes.
 
 - **Create**: choose a PDF → PageLock gives it a random document ID, fingerprints every page (SHA-256),
-  adds a 1-inch footer band under each page with a linked QR seal, and gives you the sealed PDF plus a
+  adds a 1.5-inch footer band under each page with a linked QR seal, and gives you the sealed PDF plus a
   **reference file** (and a receipt with the manifest digest) to keep safe.
 - **Verify**: choose a PDF and, ideally, your reference file or digest. PageLock recomputes every fingerprint,
   checks order and links, and shows each check with one of five results:

@@ -3,7 +3,7 @@ import {
   END,
   FONT_BOLD,
   FONT_REGULAR,
-  FOOTER_HEIGHT,
+  FOOTER_LAYOUTS,
   FOOTER_XOBJECT,
   MANIFEST_KEY,
   MANIFEST_TYPE,
@@ -109,6 +109,7 @@ interface SealRead {
   structural: string[]; // failures that mean tampering
   inconclusive: string[]; // could not read
   footerMismatch: boolean;
+  footerHeight?: number;
 }
 
 /** Read one sealed page strictly: the page must be exactly [original form] + [footer form], nothing else. */
@@ -143,10 +144,20 @@ async function readSealedPage(doc: PDFDocument, leafDict: PDFDict, position: num
   const W = box[2] - box[0];
   const H = box[3] - box[1];
 
+  // Which footer layout was this page sealed with? Known heights only.
+  const fbox = readBox(ctx, foot.dict.get(PDFName.of("BBox")));
+  const F = fbox ? fbox[3] : NaN;
+  if (!fbox || fbox[0] !== 0 || fbox[1] !== 0 || Math.abs(fbox[2] - W) > 1e-6 || !(FOOTER_LAYOUTS as readonly number[]).includes(F)) {
+    bad("footer area was changed (it could overlap the page).");
+    return r;
+  }
+
+  r.footerHeight = F;
+
   // Page geometry must be exactly the original plus the footer band.
   const media = readBox(ctx, leafDict.get(PDFName.of("MediaBox")));
   const crop = readBox(ctx, leafDict.get(PDFName.of("CropBox")) ?? leafDict.get(PDFName.of("MediaBox")));
-  const expect = [0, 0, W, H + FOOTER_HEIGHT];
+  const expect = [0, 0, W, H + F];
   const same = (b?: number[]) => !!b && b.every((v, i) => Math.abs(v - expect[i]) < 1e-6);
   if (!same(media) || !same(crop)) bad("page size or visible area was changed.");
   if ((inheritedNumber(doc.getPages()[position - 1].node, "Rotate") ?? 0) % 360 !== 0) bad("page rotation was changed.");
@@ -156,7 +167,7 @@ async function readSealedPage(doc: PDFDocument, leafDict: PDFDict, position: num
     const contents = leafDict.get(PDFName.of("Contents"));
     const resolved = contents instanceof PDFRef ? ctx.lookup(contents) : contents;
     if (!(resolved instanceof PDFRawStream)) bad("page drawing instructions were changed.");
-    else if (!bytesEq(decodeContentStream(ctx, resolved), utf8(wrapperContent(box))))
+    else if (!bytesEq(decodeContentStream(ctx, resolved), utf8(wrapperContent(box, F))))
       bad("page drawing instructions were changed (something may be drawn over the original).");
   } catch {
     bad("page drawing instructions could not be read.");
@@ -173,9 +184,6 @@ async function readSealedPage(doc: PDFDocument, leafDict: PDFDict, position: num
 
   // Footer form.
   if (onlyKeys(foot.dict, ["Type", "Subtype", "BBox", "Resources", "Length", "Filter"])) bad("footer object was modified.");
-  const fbox = readBox(ctx, foot.dict.get(PDFName.of("BBox")));
-  if (!fbox || fbox[0] !== 0 || fbox[1] !== 0 || Math.abs(fbox[2] - W) > 1e-6 || fbox[3] !== FOOTER_HEIGHT)
-    bad("footer area was changed (it could overlap the page).");
   const fres = ctx.lookupMaybe(foot.dict.get(PDFName.of("Resources")), PDFDict);
   const fonts = fres?.lookupMaybe(PDFName.of("Font"), PDFDict);
   const fxo = fres?.lookupMaybe(PDFName.of("XObject"), PDFDict);
@@ -236,7 +244,7 @@ async function readSealedPage(doc: PDFDocument, leafDict: PDFDict, position: num
       index: r.payload.index,
       count: r.payload.count,
       hash: r.payload.hash,
-    });
+    }, F);
     if (!bytesEq(decodeContentStream(ctx, foot), utf8(expected))) {
       r.footerMismatch = true;
       bad("footer text or layout was edited.");
@@ -323,6 +331,7 @@ export async function verifyPdf(input: Uint8Array, opts: VerifyOptions = {}): Pr
   const pages: PageResult[] = [];
   const structural: string[] = [];
   const inconclusive: string[] = [];
+  const footerHeights = new Set<number>();
   for (let i = 0; i < leaves.length; i++) {
     const pos = i + 1;
     if (!sealedFlags[i]) {
@@ -330,6 +339,7 @@ export async function verifyPdf(input: Uint8Array, opts: VerifyOptions = {}): Pr
       continue;
     }
     const s = await readSealedPage(doc, leaves[i].leaf, pos);
+    if (s.footerHeight !== undefined) footerHeights.add(s.footerHeight);
     structural.push(...s.structural);
     inconclusive.push(...s.inconclusive);
     pages.push({
@@ -340,6 +350,7 @@ export async function verifyPdf(input: Uint8Array, opts: VerifyOptions = {}): Pr
       problems: [...s.structural, ...s.inconclusive].map((m) => m.replace(/^Page \d+: /, "")),
     });
   }
+  if (footerHeights.size > 1) structural.push("Pages use different footer layouts, so they were not sealed together.");
   const unsealed = pages.filter((p) => !p.sealed).map((p) => `Page ${p.position} has no PageLock seal (it was inserted or replaced).`);
   add("sealed", "Every page carries a PageLock seal", unsealed.length ? "fail" : "pass", unsealed);
   add(
