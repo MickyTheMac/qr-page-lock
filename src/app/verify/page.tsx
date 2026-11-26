@@ -149,7 +149,7 @@ export default function VerifyPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader icon={<SearchCheckIcon size={24} />} title="Check a copy">
+      <PageHeader tone="emerald" icon={<SearchCheckIcon size={24} />} title="Check a copy">
         Everything happens in this browser. Nothing is uploaded.
       </PageHeader>
 

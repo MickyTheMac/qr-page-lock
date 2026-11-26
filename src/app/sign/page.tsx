@@ -145,7 +145,7 @@ export default function SignPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader icon={<PenIcon size={24} />} title="Sign the agreement">
+      <PageHeader tone="violet" icon={<PenIcon size={24} />} title="Sign the agreement">
         Each founder signs the same sealed PDF, one after the other. Your signing key is made and kept in this browser; it
         never leaves your device.
       </PageHeader>

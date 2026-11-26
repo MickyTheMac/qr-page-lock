@@ -33,6 +33,7 @@ const STEPS = [
     text: "Choose your PDF. You get the sealed PDF to share and a reference file to keep somewhere safe.",
     cta: "Start",
     tint: "from-indigo-500 to-indigo-700",
+    bar: "border-indigo-500",
   },
   {
     href: "/sign/",
@@ -42,6 +43,7 @@ const STEPS = [
     text: "Each founder reads every page, agrees once to the whole document and adds a digital signature. The sign-off is logged: signed, then double signed.",
     cta: "Sign",
     tint: "from-violet-500 to-violet-700",
+    bar: "border-violet-500",
   },
   {
     href: "/verify/",
@@ -51,6 +53,7 @@ const STEPS = [
     text: "Choose a sealed PDF and, ideally, the reference file you kept. PageLock checks every page and tells you what it found.",
     cta: "Check",
     tint: "from-emerald-500 to-emerald-700",
+    bar: "border-emerald-500",
   },
 ];
 
@@ -151,17 +154,17 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="space-y-5">
+      <section className="space-y-5 rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 shadow-xl shadow-slate-900/20 sm:p-8">
         <div className="flex items-center gap-2">
-          <LayersIcon size={20} className="text-indigo-600" />
-          <h2 className="text-xl font-bold tracking-tight text-slate-900">How it works</h2>
+          <LayersIcon size={20} className="text-indigo-300" />
+          <h2 className="text-xl font-bold tracking-tight text-white">How it works</h2>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
-          {STEPS.map(({ href, Icon, step, title, text, cta, tint }) => (
+          {STEPS.map(({ href, Icon, step, title, text, cta, tint, bar }) => (
             <Link
               key={href}
               href={href}
-              className="group flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md"
+              className={`group flex flex-col rounded-2xl border-t-4 bg-white p-6 shadow-lg transition hover:-translate-y-0.5 hover:shadow-2xl ${bar}`}
             >
               <div className="flex items-center justify-between">
                 <span className={`flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-sm ${tint}`}>
@@ -204,7 +207,7 @@ export default function Home() {
           <ShieldCheckIcon size={20} className="text-indigo-600" />
           <h2 className="text-xl font-bold tracking-tight text-slate-900">What the results mean</h2>
         </div>
-        <ul className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <ul className="divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-300/70 bg-white shadow-md shadow-slate-900/5">
           {LEVELS.map(([name, text]) => (
             <li key={name} className="flex flex-col gap-2 px-5 py-4 text-sm sm:flex-row sm:items-center sm:gap-4">
               <div className="sm:w-60 sm:shrink-0">

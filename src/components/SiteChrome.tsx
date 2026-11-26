@@ -14,10 +14,10 @@ const NAV: { key: Exclude<Section, "home">; href: string; label: string; Icon: t
 
 export function SiteHeader({ active }: { active: Section }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur">
+    <header className="sticky top-0 z-20 border-b border-indigo-900 bg-slate-900 shadow-lg shadow-slate-900/20">
       <nav className="mx-auto flex max-w-5xl items-center gap-1 px-4 py-2.5 sm:gap-2">
-        <Link href="/" className="mr-2 flex items-center gap-2 font-bold tracking-tight text-slate-900 sm:mr-4">
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 text-white shadow-sm shadow-indigo-600/30">
+        <Link href="/" className="mr-2 flex items-center gap-2 font-bold tracking-tight text-white sm:mr-4">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 text-white shadow-sm shadow-indigo-900/40">
             <LockIcon size={18} />
           </span>
           <span className="hidden text-lg min-[400px]:inline">PageLock</span>
@@ -28,14 +28,14 @@ export function SiteHeader({ active }: { active: Section }) {
             href={href}
             aria-current={active === key ? "page" : undefined}
             className={`flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[11px] font-medium transition min-[480px]:flex-row min-[480px]:gap-1 min-[480px]:px-2 min-[480px]:py-2 min-[480px]:text-sm sm:gap-1.5 sm:px-2.5 ${
-              active === key ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              active === key ? "bg-white text-indigo-700 shadow-sm" : "text-slate-300 hover:bg-white/10 hover:text-white"
             }`}
           >
             <Icon size={17} />
             {label}
           </Link>
         ))}
-        <span className="ml-auto hidden rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900 ring-1 ring-amber-200 sm:inline">
+        <span className="ml-auto hidden rounded-full bg-amber-300 px-2.5 py-1 text-xs font-semibold text-amber-950 sm:inline">
           Prototype · Phase 2
         </span>
       </nav>
@@ -45,9 +45,9 @@ export function SiteHeader({ active }: { active: Section }) {
 
 export function SiteFooter() {
   return (
-    <footer className="mt-8 border-t border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-5xl gap-3 px-4 py-6 text-xs leading-relaxed text-slate-500">
-        <ShieldCheckIcon size={18} className="mt-0.5 shrink-0 text-slate-400" />
+    <footer className="mt-12 border-t-4 border-indigo-500 bg-slate-900">
+      <div className="mx-auto flex max-w-5xl gap-3 px-4 py-6 text-xs leading-relaxed text-slate-300">
+        <ShieldCheckIcon size={18} className="mt-0.5 shrink-0 text-emerald-400" />
         <p>
           Your documents are processed only in this browser tab. They are uploaded only if you save them to your vault, and
           then only after being locked on your device, so PageLock cannot read them. Signing sends only hashes to the

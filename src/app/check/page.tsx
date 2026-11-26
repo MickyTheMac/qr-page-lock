@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LINK_BASE, PublicSignOff, QrPayload, groupDocId, parsePayload, parsePhotoLink, shortFingerprint } from "@/lib/pagelock";
 import { getService } from "@/lib/service-config";
+import { PageHeader } from "@/components/ui";
+import { CameraIcon, QrIcon } from "@/components/icons";
 
 /**
  * Opened when someone scans the LAST page's QR code with a phone (the code is a link to /C/<code>).
@@ -57,7 +59,9 @@ function DocumentCheck() {
 
   return (
     <div className="mx-auto max-w-xl py-2">
-      <h1 className="text-2xl font-semibold">Document check</h1>
+      <PageHeader tone="emerald" icon={<QrIcon size={24} />} title="Document check">
+        Was this document signed off?
+      </PageHeader>
 
       {state.kind === "loading" && <p className="mt-6 text-neutral-600">Checking the sign-off log…</p>}
 
@@ -71,7 +75,7 @@ function DocumentCheck() {
       )}
 
       {state.kind !== "loading" && state.kind !== "bad" && (
-        <dl className="mt-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        <dl className="mt-6 grid rounded-2xl border border-slate-300/70 bg-white p-4 shadow-md shadow-slate-900/5 grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           <dt className="text-neutral-500">Document</dt>
           <dd className="font-mono">{groupDocId(state.code.documentId)}</dd>
           <dt className="text-neutral-500">Pages</dt>
@@ -176,7 +180,9 @@ function PhotoRecordCheck() {
 
   return (
     <div className="mx-auto max-w-xl py-2">
-      <h1 className="text-2xl font-semibold">Sealed photo check</h1>
+      <PageHeader tone="sky" icon={<CameraIcon size={24} />} title="Sealed photo check">
+        When was this photo sealed?
+      </PageHeader>
       {state.kind === "loading" && <p className="mt-6 text-neutral-600">Looking up this photo…</p>}
       {state.kind === "bad" && (
         <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4">

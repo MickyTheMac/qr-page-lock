@@ -139,7 +139,7 @@ export default function PhotoPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader icon={<CameraIcon size={24} />} title="Take a sealed photo">
+      <PageHeader icon={<CameraIcon size={24} />} title="Take a sealed photo" tone="sky">
         Take a picture of a licence, passport or document. PageLock seals it the moment it is taken, so anyone you send
         it to can check later that <strong>not one pixel has changed</strong>. Only the picture&apos;s fingerprint is
         sent to PageLock, never the picture.
