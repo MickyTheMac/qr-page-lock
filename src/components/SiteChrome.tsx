@@ -1,13 +1,14 @@
 // Header and footer shared by the Next.js app and the single-file build.
 import Link from "next/link";
-import { FileSealIcon, LockIcon, PenIcon, SearchCheckIcon, ShieldCheckIcon } from "./icons";
+import { CameraIcon, FileSealIcon, LockIcon, PenIcon, SearchCheckIcon, ShieldCheckIcon } from "./icons";
 
-export type Section = "home" | "create" | "sign" | "verify" | "vault";
+export type Section = "home" | "create" | "sign" | "verify" | "photo" | "vault";
 
 const NAV: { key: Exclude<Section, "home">; href: string; label: string; Icon: typeof LockIcon }[] = [
   { key: "create", href: "/create/", label: "Create", Icon: FileSealIcon },
   { key: "sign", href: "/sign/", label: "Sign", Icon: PenIcon },
   { key: "verify", href: "/verify/", label: "Verify", Icon: SearchCheckIcon },
+  { key: "photo", href: "/photo/", label: "Photo", Icon: CameraIcon },
   { key: "vault", href: "/vault/", label: "Vault", Icon: LockIcon },
 ];
 
@@ -26,7 +27,7 @@ export function SiteHeader({ active }: { active: Section }) {
             key={key}
             href={href}
             aria-current={active === key ? "page" : undefined}
-            className={`flex items-center gap-1 rounded-lg px-2 py-2 text-sm font-medium transition sm:gap-1.5 sm:px-2.5 ${
+            className={`flex flex-col items-center gap-0.5 rounded-lg px-1.5 py-1.5 text-[11px] font-medium transition min-[480px]:flex-row min-[480px]:gap-1 min-[480px]:px-2 min-[480px]:py-2 min-[480px]:text-sm sm:gap-1.5 sm:px-2.5 ${
               active === key ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >

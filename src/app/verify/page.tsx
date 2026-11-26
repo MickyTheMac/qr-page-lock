@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { FileDrop } from "@/components/FileDrop";
+import { PhotoCheckResult } from "@/components/PhotoCheckResult";
 import { PdfPreview } from "@/components/PdfPreview";
 import {
   AlertIcon,
@@ -33,8 +34,10 @@ import {
   ParsedReference,
   TrustProfile,
   VerifyReport,
+  PhotoCheckReport,
   b64decode,
   checkDocumentLog,
+  checkSealedPhoto,
   evidenceReport,
   groupDocId,
   parseReference,
@@ -73,6 +76,7 @@ export default function VerifyPage() {
   useEffect(() => {
     getService().then(setSvc);
   }, []);
+  const isPhoto = !!pdf && (pdf.type === "image/png" || /\.png$/i.test(pdf.name));
 
   async function loadLog(r: VerifyReport) {
     setLog(null);
@@ -181,11 +185,11 @@ export default function VerifyPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Step n={1} icon={<FileIcon size={18} />} title="The PDF to check" done={!!pdf} className="!space-y-3">
+        <Step n={1} icon={<FileIcon size={18} />} title="The PDF or sealed photo to check" done={!!pdf} className="!space-y-3">
           <FileDrop
-            label="Choose or drop the sealed PDF"
+            label="Choose or drop the sealed PDF or photo"
             hint="The copy you received or found"
-            accept="application/pdf,.pdf"
+            accept="application/pdf,.pdf,image/png,.png"
             file={pdf}
             onFile={(f) => {
               setPdf(f);
@@ -193,6 +197,9 @@ export default function VerifyPage() {
             }}
           />
         </Step>
+        {isPhoto ? (
+          <PhotoNote />
+        ) : (
         <Step n={2} icon={<KeyIcon size={18} />} title="Your trusted reference" hint="Recommended" done={!!refFile || digest.trim().length > 0} className="!space-y-3">
           <FileDrop
             label="Choose the reference .json you kept"
@@ -217,8 +224,13 @@ export default function VerifyPage() {
             </button>
           )}
         </Step>
+        )}
       </div>
 
+      {isPhoto && pdf && <PhotoCheck file={pdf} svc={svc} />}
+
+      {!isPhoto && (
+      <>
       <Step n={3} icon={<UsersIcon size={18} />} title="Whose signatures to trust" className="!space-y-3">
         <div className="grid gap-2 sm:grid-cols-3">
           {trustOptions.map(({ key, Icon, title, text }) => (
@@ -439,6 +451,56 @@ export default function VerifyPage() {
           </Notice>
         </div>
       )}
+      </>
+      )}
     </div>
   );
+}
+
+function PhotoNote() {
+  return (
+    <Step n={2} icon={<InfoIcon size={18} />} title="A sealed photo" className="!space-y-3">
+      <p className="text-sm text-slate-600">
+        PageLock checks every pixel against the seal inside the file, and checks PageLock&apos;s trusted time. Nothing else
+        is needed. Only the original PNG file works: copies sent through messaging apps lose the seal.
+      </p>
+    </Step>
+  );
+}
+
+function PhotoCheck({ file, svc }: { file: File; svc: ActiveService | null }) {
+  const [state, setState] = useState<{ report: PhotoCheckReport; bytes: Uint8Array; pub?: string | null } | { error: string } | null>(null);
+  useEffect(() => {
+    if (!svc) return;
+    let live = true;
+    (async () => {
+      try {
+        const bytes = await readFile(file);
+        const trust = await svc.client.trust().catch(() => null);
+        const report = await checkSealedPhoto(bytes, trust);
+        let pub: string | null | undefined;
+        if (report.record) {
+          try {
+            pub = (await svc.client.publicPhoto(report.record.sealDigest))?.sealedAt ?? null;
+          } catch {
+            pub = undefined; // the public record could not be reached; the file check above still stands
+          }
+        }
+        if (live) setState({ report, bytes, pub });
+      } catch (e) {
+        if (live) setState({ error: e instanceof Error ? e.message : "Something went wrong." });
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [file, svc]);
+  if (!state)
+    return (
+      <div className="flex items-center gap-2 text-slate-500">
+        <SpinnerIcon /> Checking every pixel…
+      </div>
+    );
+  if ("error" in state) return <Notice tone="error">{state.error}</Notice>;
+  return <PhotoCheckResult report={state.report} file={state.bytes} publicSealedAt={state.pub} />;
 }

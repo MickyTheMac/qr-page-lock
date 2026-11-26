@@ -176,7 +176,7 @@ function diffRevision(prev: PDFDocument, cur: PDFDocument, revNo: number): Revis
 }
 
 /** Validate a certification path to one of the anchors at a given time. */
-async function validatePath(leaf: pkijs.Certificate, others: pkijs.Certificate[], anchors: pkijs.Certificate[], at: Date) {
+export async function validatePath(leaf: pkijs.Certificate, others: pkijs.Certificate[], anchors: pkijs.Certificate[], at: Date) {
   if (!anchors.length) return { ok: false, path: [] as pkijs.Certificate[], message: "No trusted authorities are configured." };
   const engine = new pkijs.CertificateChainValidationEngine({
     trustedCerts: anchors,

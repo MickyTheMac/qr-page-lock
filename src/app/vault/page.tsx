@@ -1,12 +1,16 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { PendingPhoto, getPendingPhoto, pngUrl, savePhotoToVault } from "@/lib/photo-ui";
 import {
   AccountInfo,
   VaultApiError,
   VaultDocument,
   VaultIdentity,
   VaultPerson,
+  checkSealedPhoto,
   deriveIdentity,
+  isPng,
   groupDocId,
   newRoot,
   rootToWords,
@@ -19,7 +23,7 @@ import { ActiveService, getService } from "@/lib/service-config";
 import { baseName, download, readFile } from "@/lib/download";
 import { FileDrop } from "@/components/FileDrop";
 import { Notice, PageHeader, btnPrimary, btnSecondary, card, inputCls, linkBtn } from "@/components/ui";
-import { CheckCircleIcon, DownloadIcon, FileIcon, KeyIcon, LockIcon, MailIcon, ShieldCheckIcon, SpinnerIcon, UsersIcon } from "@/components/icons";
+import { CameraIcon, CheckCircleIcon, DownloadIcon, FileIcon, KeyIcon, LockIcon, MailIcon, ShieldCheckIcon, SpinnerIcon, UsersIcon } from "@/components/icons";
 
 /**
  * The vault: save sealed agreements so either signer can get them back later.
@@ -552,6 +556,7 @@ function Vault({
       {err && <Notice tone="error">{err}</Notice>}
       {note && <Notice tone="success">{note}</Notice>}
 
+      <PendingPhotoBox svc={svc} me={me} onSaved={refresh} />
       <SaveBox svc={svc} me={me} onSaved={refresh} />
 
       <section className="space-y-3">
@@ -568,17 +573,69 @@ function Vault({
   );
 }
 
+/** The sealed photo just taken on the Photo page, if it is still waiting to be saved. */
+function PendingPhotoBox({ svc, me, onSaved }: { svc: ActiveService; me: VaultIdentity; onSaved: () => void }) {
+  const [p] = useState<PendingPhoto | null>(() => {
+    const x = getPendingPhoto();
+    return x && !x.savedToVault ? x : null;
+  });
+  const url = useMemo(() => (p ? pngUrl(p.png) : null), [p]);
+  useEffect(() => () => void (url && URL.revokeObjectURL(url)), [url]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
+  if (!p) return null;
+  return (
+    <section className={`${card} flex flex-wrap items-center gap-4 border-indigo-200 bg-indigo-50/50`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {url && <img src={url} alt="" className="h-20 w-auto rounded-lg border border-slate-200" />}
+      <div className="min-w-0 flex-1 text-sm text-slate-700">
+        <div className="font-semibold text-slate-900">Your sealed photo is waiting</div>
+        {p.name}
+      </div>
+      {msg?.tone === "success" ? (
+        <Notice tone="success">{msg.text}</Notice>
+      ) : (
+        <button
+          className={btnPrimary}
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            setMsg(null);
+            try {
+              await savePhotoToVault(svc, me, p);
+              setMsg({ tone: "success", text: "Locked on this device and saved." });
+              onSaved();
+            } catch (x) {
+              setMsg({ tone: "error", text: errText(x) });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? <SpinnerIcon size={16} /> : <LockIcon size={16} />} Save it locked
+        </button>
+      )}
+      {msg?.tone === "error" && <Notice tone="error">{msg.text}</Notice>}
+    </section>
+  );
+}
+
 function SaveBox({ svc, me, onSaved }: { svc: ActiveService; me: VaultIdentity; onSaved: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ tone: "error" | "success"; text: string } | null>(null);
   return (
     <section className={`${card} space-y-3`}>
-      <div className="font-semibold text-slate-900">Save a sealed agreement</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex-1 font-semibold text-slate-900">Save a sealed agreement or photo</div>
+        <Link href="/photo/" className={btnSecondary}>
+          <CameraIcon size={16} /> Take a sealed photo
+        </Link>
+      </div>
       <FileDrop
-        label="Choose a sealed PDF"
-        hint="A document sealed with PageLock (up to 3 MB)"
-        accept="application/pdf,.pdf"
+        label="Choose a sealed PDF or photo"
+        hint="A document or photo sealed with PageLock (up to 3 MB)"
+        accept="application/pdf,.pdf,image/png,.png"
         file={file}
         onFile={async (f) => {
           setFile(f);
@@ -588,6 +645,16 @@ function SaveBox({ svc, me, onSaved }: { svc: ActiveService; me: VaultIdentity; 
           try {
             const bytes = await readFile(f);
             if (bytes.length > 3 * 1024 * 1024 - 1024) throw new Error("This file is too big for the vault (over 3 MB).");
+            if (isPng(bytes)) {
+              const pr = await checkSealedPhoto(bytes, null);
+              if (pr.outcome === "CHANGED") throw new Error("This photo fails PageLock's checks, so it was not saved. Save the genuine copy instead.");
+              if (!pr.record) throw new Error("This is not a PageLock sealed photo. Take one on the Photo page first.");
+              await svc.vault.save(me, bytes, { name: f.name, documentId: null, manifestDigest: null, kind: "photo", photoSealDigest: pr.record.sealDigest });
+              setMsg({ tone: "success", text: `Locked on this device and saved: ${f.name}` });
+              setFile(null);
+              onSaved();
+              return;
+            }
             const r = await verifyPdf(bytes);
             if (r.outcome === "ALTERED / INVALID") throw new Error("This copy fails PageLock's checks, so it was not saved. Save the genuine copy instead.");
             if (!r.documentId || !r.manifestDigest) throw new Error("This is not a PageLock-sealed document. Seal it on the Create page first.");
@@ -632,9 +699,18 @@ function DocCard({ svc, me, doc, onChange }: { svc: ActiveService; me: VaultIden
     }
   };
 
+  const isPhoto = doc.meta?.kind === "photo";
   const open = () =>
     run("open", async () => {
       const bytes = await svc.vault.open(doc);
+      if (isPhoto) {
+        const pr = await checkSealedPhoto(bytes, null);
+        if (pr.outcome === "CHANGED" || !pr.record || pr.record.sealDigest !== doc.meta?.photoSealDigest)
+          throw new Error("This photo does not match the fingerprint saved with it. Do not rely on it.");
+        await download(bytes, doc.meta?.name ?? "sealed-photo.png", "image/png");
+        setMsg({ tone: "success", text: "Unlocked on this device. Every pixel matches its seal, and it has been downloaded." });
+        return;
+      }
       const r = await verifyPdf(bytes);
       if (doc.meta?.manifestDigest && r.manifestDigest !== doc.meta.manifestDigest)
         throw new Error("This file does not match the fingerprint saved with it. Do not rely on it.");
@@ -676,12 +752,18 @@ function DocCard({ svc, me, doc, onChange }: { svc: ActiveService; me: VaultIden
   return (
     <div className={`${card} space-y-4`}>
       <div className="flex flex-wrap items-start gap-3">
-        <FileIcon size={22} className="mt-0.5 text-indigo-500" />
+        {isPhoto ? <CameraIcon size={22} className="mt-0.5 text-indigo-500" /> : <FileIcon size={22} className="mt-0.5 text-indigo-500" />}
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold text-slate-900">{doc.meta ? baseName(doc.meta.name) : "Document"}</div>
+          <div className="truncate font-semibold text-slate-900">{doc.meta ? baseName(doc.meta.name).replace(/\.png$/i, "") : "Document"}</div>
           <div className="text-xs text-slate-500">
             Saved {new Date(doc.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
             {doc.meta?.documentId && <> · Document {groupDocId(doc.meta.documentId)}</>}
+            {doc.meta?.photoSealDigest && (
+              <>
+                {" "}
+                · Sealed photo <span className="font-mono">{shortFingerprint(doc.meta.photoSealDigest)}</span>
+              </>
+            )}
             {doc.meta?.manifestDigest && (
               <>
                 {" "}

@@ -35,6 +35,9 @@ export interface VaultMeta {
   documentId: string | null;
   manifestDigest: string | null;
   savedAt: string;
+  /** Set for a sealed photo (a PNG), with its seal fingerprint. Absent for sealed PDFs. */
+  kind?: "photo";
+  photoSealDigest?: string;
 }
 
 function random(n: number): Uint8Array {

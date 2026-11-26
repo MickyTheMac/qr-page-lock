@@ -230,3 +230,17 @@ export const SpinnerIcon = ({ className = "", ...p }: P) => (
     <path d="M21 12a9 9 0 1 1-9-9" />
   </Svg>
 );
+
+export const CameraIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+    <circle cx="12" cy="13.5" r="3.5" />
+  </Svg>
+);
+
+export const RefreshIcon = (p: P) => (
+  <Svg {...p}>
+    <path d="M20 11a8 8 0 0 0-14.9-3.5M4 4v4h4" />
+    <path d="M4 13a8 8 0 0 0 14.9 3.5M20 20v-4h-4" />
+  </Svg>
+);

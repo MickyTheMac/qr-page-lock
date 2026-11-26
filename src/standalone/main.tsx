@@ -7,6 +7,7 @@ import CreatePage from "@/app/create/page";
 import VerifyPage from "@/app/verify/page";
 import SignPage from "@/app/sign/page";
 import VaultPage from "@/app/vault/page";
+import PhotoPage from "@/app/photo/page";
 
 const workerText = document.getElementById("pdf-worker")?.textContent;
 if (workerText) {
@@ -15,10 +16,10 @@ if (workerText) {
   );
 }
 
-type View = "home" | "create" | "sign" | "verify" | "vault";
+type View = "home" | "create" | "sign" | "verify" | "photo" | "vault";
 const viewFromHash = (): View => {
   const h = location.hash.replace("#", "");
-  return h === "create" || h === "sign" || h === "verify" || h === "vault" ? h : "home";
+  return h === "create" || h === "sign" || h === "verify" || h === "photo" || h === "vault" ? h : "home";
 };
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
         {view === "create" && <CreatePage />}
         {view === "sign" && <SignPage />}
         {view === "verify" && <VerifyPage />}
+        {view === "photo" && <PhotoPage />}
         {view === "vault" && <VaultPage />}
       </main>
       <SiteFooter />

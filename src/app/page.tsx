@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Outcome } from "@/lib/pagelock";
 import {
   ArrowRightIcon,
+  CameraIcon,
   EyeIcon,
   FileSealIcon,
   KeyIcon,
@@ -178,6 +179,25 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      <Link
+        href="/photo/"
+        className="group flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-300 hover:shadow-md sm:p-6"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500 to-sky-700 text-white shadow-sm">
+          <CameraIcon size={22} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-lg font-bold text-slate-900">New: sealed photos</div>
+          <p className="text-sm leading-relaxed text-slate-600">
+            Photograph a licence, passport or document inside PageLock. It is sealed the moment it is taken, so anyone can
+            check later that not one pixel has changed.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-700">
+          Take a photo <ArrowRightIcon size={16} className="transition group-hover:translate-x-1" />
+        </span>
+      </Link>
 
       <section className="space-y-5">
         <div className="flex items-center gap-2">

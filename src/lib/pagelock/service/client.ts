@@ -102,6 +102,21 @@ export class PageLockClient {
     }
   }
 
+  /** Sealed photos: sends ONLY the photo's 64-character fingerprint, and gets back PageLock's time and timestamp. */
+  sealPhoto(sealDigest: string) {
+    return this.post<{ sealDigest: string; sealedAt: string; timestampToken: string }>("/api/photo/seal", { sealDigest });
+  }
+
+  /** Public record of a sealed photo: when PageLock first saw its fingerprint, or null if never. */
+  async publicPhoto(sealDigest: string): Promise<{ sealedAt: string } | null> {
+    try {
+      return await this.call<{ sealedAt: string }>(`/api/public/photo/${sealDigest}`);
+    } catch (e) {
+      if (e instanceof ServiceError && e.status === 404) return null;
+      throw e;
+    }
+  }
+
   /** Completed sign-offs for a document ID (fingerprint and time only). */
   async publicByDocument(documentId: string): Promise<PublicSignOff[]> {
     const r = await this.call<{ signOffs: PublicSignOff[] }>(`/api/public/doc/${documentId}`);

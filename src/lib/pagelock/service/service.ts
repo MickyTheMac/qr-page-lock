@@ -446,6 +446,38 @@ export class PageLockService {
     return { documentId, signOffs };
   }
 
+  // ------------------------------------------------------------------ sealed photos
+
+  /**
+   * Seals a photo's fingerprint: records it with this server's time and returns an RFC 3161 timestamp over it.
+   * The server receives only the 64-character fingerprint, never the photo or the details typed with it.
+   * Asking again for the same fingerprint returns the first time it was sealed.
+   */
+  async sealPhoto(body: { sealDigest?: unknown }) {
+    const d = typeof body?.sealDigest === "string" ? body.sealDigest : "";
+    if (!DIGEST_RE.test(d)) throw new HttpError(400, "Malformed photo fingerprint.");
+    return this.exclusive(async (store) => {
+      const key = `photo:${d}`;
+      let rec = await store.get<{ sealedAt: string; token: string }>(key);
+      if (!rec) {
+        const now = new Date(Math.floor(this.now().getTime() / 1000) * 1000); // the timestamp keeps whole seconds
+        const imprint = new Uint8Array(d.match(/../g)!.map((h) => parseInt(h, 16)));
+        const token = b64encode(await issueTimestampToken(imprint, this.keys.tsa, now));
+        rec = { sealedAt: now.toISOString(), token };
+        await store.put(key, rec);
+      }
+      return { sealDigest: d, sealedAt: rec.sealedAt, timestampToken: rec.token };
+    });
+  }
+
+  /** Public: when a photo with this fingerprint was sealed. Nothing else is known to the server. */
+  async publicPhoto(sealDigest: string) {
+    if (!DIGEST_RE.test(sealDigest)) throw new HttpError(400, "Malformed photo fingerprint.");
+    const rec = await this.cfg.store.get<{ sealedAt: string }>(`photo:${sealDigest}`);
+    if (!rec) throw new HttpError(404, "No photo with this fingerprint was sealed here.");
+    return { sealDigest, sealedAt: rec.sealedAt };
+  }
+
   async head() {
     const log = await this.cfg.store.readLog();
     const last = log[log.length - 1];
@@ -482,6 +514,7 @@ export class PageLockService {
         throw new HttpError(400, "Expected JSON.");
       }
     };
+    let m0: RegExpMatchArray | null;
     try {
       if (req.method === "GET" && path === "/api/health") return json(200, { ok: true });
       if (req.method === "GET" && path === "/api/trust") return json(200, await this.trustFile());
@@ -496,6 +529,8 @@ export class PageLockService {
         if (der.length > 4096) throw new HttpError(413, "Request too large.");
         return new Response(ab(await this.timestamp(der)), { headers: { ...cors, "Content-Type": "application/timestamp-reply" } });
       }
+      if (req.method === "POST" && path === "/api/photo/seal") return json(200, await this.sealPhoto(await body()));
+      if (req.method === "GET" && (m0 = path.match(/^\/api\/public\/photo\/([0-9A-F]{64})$/))) return json(200, await this.publicPhoto(m0[1]));
       if (req.method === "POST" && path === "/api/signoff") return json(200, await this.recordSignOff(await body()));
       let m = path.match(/^\/api\/signoff\/([0-9A-F]{64})$/);
       if (req.method === "GET" && m) return json(200, await this.readSignOff(m[1], req.headers.get("Authorization")));
