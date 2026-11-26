@@ -3,7 +3,12 @@
  * photo while the person opens their vault, and saving it to the vault (locked on this device first).
  */
 import {
+  AlignScore,
   PHOTO_MAX_SIDE,
+  Rect,
+  scoreAlignment,
+  targetRect,
+  toGray,
   PhotoSealRecord,
   RgbImage,
   STRIP_COLORS,
@@ -18,20 +23,42 @@ import {
 import { recallRoot, savedToken } from "@/lib/pagelock/vault/device";
 import type { ActiveService } from "@/lib/service-config";
 
-/** Takes the current camera frame, scaled so its longest side is at most PHOTO_MAX_SIDE. */
-export function grabFrame(video: HTMLVideoElement): RgbImage {
+/**
+ * Takes the current camera frame (or just the `crop` part of it, in camera pixels), scaled so its longest side is at
+ * most PHOTO_MAX_SIDE.
+ */
+export function grabFrame(video: HTMLVideoElement, crop?: Rect): RgbImage {
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   if (!vw || !vh) throw new Error("The camera has not started yet.");
-  const k = Math.min(1, PHOTO_MAX_SIDE / Math.max(vw, vh));
-  const w = Math.round(vw * k);
-  const h = Math.round(vh * k);
+  const r = crop ?? { x: 0, y: 0, w: vw, h: vh };
+  const k = Math.min(1, PHOTO_MAX_SIDE / Math.max(r.w, r.h));
+  const w = Math.round(r.w * k);
+  const h = Math.round(r.h * k);
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
   const ctx = c.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(video, 0, 0, w, h);
+  ctx.drawImage(video, r.x, r.y, r.w, r.h, 0, 0, w, h);
   return rgbaToRgb(ctx.getImageData(0, 0, w, h).data, w, h);
+}
+
+const SMALL = 320;
+let small: CanvasRenderingContext2D | null = null;
+
+/** Checks whether the document's edges sit on the target, using a small grey copy of the current frame. */
+export function frameAlignment(video: HTMLVideoElement, ratio: number): AlignScore | null {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh) return null;
+  const w = SMALL;
+  const h = Math.round((vh / vw) * SMALL);
+  if (!small) small = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  if (!small) return null;
+  small.canvas.width = w;
+  small.canvas.height = h;
+  small.drawImage(video, 0, 0, w, h);
+  return scoreAlignment(toGray(small.getImageData(0, 0, w, h).data, w, h), w, h, targetRect(w, h, ratio));
 }
 
 const rgbCss = (c: readonly number[]) => `rgb(${c[0]},${c[1]},${c[2]})`;
@@ -67,7 +94,8 @@ export function writeStripText(base: RgbImage, record: PhotoSealRecord): RgbImag
     ctx.fillStyle = rgbCss(color);
     ctx.fillText(text, x, top);
   };
-  const what = record.seal.details.what;
+  const looks = record.seal.capture?.looks;
+  const what = record.seal.details.what + (looks?.result === "not-recognised" ? " (not recognised)" : "");
   const rows: [string, number, number, string, readonly number[]][] = [
     ["SEALED BY PAGELOCK", 0.17, 800, sans, STRIP_COLORS.text],
     [sealedWhen(record.sealedAt), 0.15, 600, sans, STRIP_COLORS.text],
@@ -133,4 +161,13 @@ export async function savePhotoToVault(svc: ActiveService, me: VaultIdentity, p:
 
 export function pngUrl(png: Uint8Array): string {
   return URL.createObjectURL(new Blob([png as BlobPart], { type: "image/png" }));
+}
+
+/** A quick on-screen preview of a picture that has not been sealed yet. */
+export function previewUrl(img: RgbImage): string {
+  const c = document.createElement("canvas");
+  c.width = img.width;
+  c.height = img.height;
+  c.getContext("2d")!.putImageData(new ImageData(rgbToRgba(img), img.width, img.height), 0, 0);
+  return c.toDataURL("image/jpeg", 0.85);
 }

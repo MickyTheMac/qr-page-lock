@@ -160,11 +160,11 @@ export default function VerifyPage() {
         <p className="mt-1 text-sm text-slate-600">
           Loads a sample agreement and its genuine reference file, with or without tampering. Then press Check every page.
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {(Object.keys(DEMOS) as DemoKind[]).map((k) => (
             <button
               key={k}
-              className={`inline-flex items-center gap-1.5 rounded-full border bg-white px-3 py-1.5 text-xs font-medium shadow-sm transition ${
+              className={`flex items-center justify-center gap-1.5 rounded-full border bg-white px-3 py-1.5 text-xs font-medium shadow-sm transition ${
                 k === "genuine"
                   ? "border-emerald-300 text-emerald-800 hover:border-emerald-500"
                   : "border-slate-300 text-slate-700 hover:border-red-400 hover:text-red-700"

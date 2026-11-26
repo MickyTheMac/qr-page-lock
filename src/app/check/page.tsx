@@ -96,7 +96,7 @@ function DocumentCheck() {
         <div className="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4">
           <p className="text-lg font-semibold text-emerald-800">Signed off and logged</p>
           <p className="mt-2 text-sm text-neutral-800">
-            Both signatures for this document were recorded on {when(state.match.signedOffAt)}.
+            Both signatures for this document were recorded on <span className="whitespace-nowrap">{when(state.match.signedOffAt)}</span>.
           </p>
           <p className="mt-2 break-all font-mono text-xs text-neutral-600">Fingerprint {state.match.manifestDigest}</p>
         </div>
@@ -203,7 +203,7 @@ function PhotoRecordCheck() {
       {state.kind === "done" && state.sealedAt && (
         <div className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 p-4">
           <p className="text-lg font-semibold text-emerald-800">A photo with this fingerprint was sealed</p>
-          <p className="mt-2 text-sm text-neutral-800">PageLock sealed it on {when(state.sealedAt)}.</p>
+          <p className="mt-2 text-sm text-neutral-800">PageLock sealed it on <span className="whitespace-nowrap">{when(state.sealedAt)}</span>.</p>
         </div>
       )}
       {state.kind === "done" && !state.sealedAt && (

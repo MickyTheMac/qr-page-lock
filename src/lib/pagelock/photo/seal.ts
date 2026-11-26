@@ -27,6 +27,7 @@ import { checkTimestampToken, equalBytes } from "../sign/cms";
 import { TrustProfile } from "../sign/trust";
 import { validatePath } from "../sign/validate";
 import { PngError, decodePng, encodePng, isPng } from "./png";
+import type { LooksCheck } from "./looks";
 
 export const PHOTO_SEAL_TYPE = "pagelock-photo-seal";
 /** The PNG text chunk that carries the seal. */
@@ -61,8 +62,17 @@ export interface PhotoSeal {
   source: "pagelock-camera";
   camera: string;
   details: PhotoDetails;
+  /** What PageLock checked while the picture was taken (on this device). */
+  capture?: CaptureChecks;
   /** Random, so nobody can guess the details from the public fingerprint. */
   salt: string;
+}
+
+export interface CaptureChecks {
+  /** Whether the document's edges were lined up on the on-screen target when the picture was taken. */
+  linedUp: boolean | null;
+  /** Whether the words in the picture are the ones that kind of document carries. */
+  looks: LooksCheck | null;
 }
 
 /** What rides along inside the PNG. */
@@ -134,7 +144,10 @@ function randomHex(n: number): string {
 
 const clean = (s: string, max: number) => s.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
 
-export async function makeSeal(photo: RgbImage, opts: { details?: Partial<PhotoDetails>; camera?: string; capturedAt?: Date }): Promise<PhotoSeal> {
+export async function makeSeal(
+  photo: RgbImage,
+  opts: { details?: Partial<PhotoDetails>; camera?: string; capturedAt?: Date; capture?: CaptureChecks },
+): Promise<PhotoSeal> {
   const d = { ...EMPTY_DETAILS, ...opts.details };
   return {
     type: PHOTO_SEAL_TYPE,
@@ -145,6 +158,7 @@ export async function makeSeal(photo: RgbImage, opts: { details?: Partial<PhotoD
     source: "pagelock-camera",
     camera: clean(opts.camera ?? "", 120),
     details: { what: clean(d.what, 80), reference: clean(d.reference, 80), takenFor: clean(d.takenFor, 120), note: clean(d.note, 400) },
+    ...(opts.capture ? { capture: opts.capture } : {}),
     salt: randomHex(16),
   };
 }

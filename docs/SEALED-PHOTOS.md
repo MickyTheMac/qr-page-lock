@@ -31,3 +31,15 @@ The words on the strip are not covered by the fingerprint; the checker shows the
 - That what is in the picture is genuine (a sharp photo of a fake licence seals just as well).
 - A determined person can fool a browser camera (fake camera device, photo of a screen).
 - Messaging apps re-compress pictures and drop the seal: send the original file.
+
+## Target and look check (added 26 Nov)
+
+- **Target.** For a licence or ID card (85.6 × 54 mm), passport photo page (125 × 88 mm) or A4 document, a frame of
+  that shape is drawn over the camera. "Take and seal" stays off until the document's four edges sit on the frame
+  (edge finding on a small grey copy of each frame, `photo/target.ts`). Only the frame area (plus a 4% margin) is kept.
+  After 15 seconds a small "take it anyway" link appears; the seal then records `linedUp: false`.
+- **Look check.** Before sealing, the device reads the words in the picture with Tesseract (served from PageLock's own
+  site, `public/tesseract/`, about 7 MB on first use) and checks for the words that kind of document carries
+  (`photo/looks.ts`). If they are missing, the person is told ("Hang on: PageLock can't see a driving licence…") and
+  can retake or seal anyway. The result rides along in the seal (`capture.looks`) and is shown when checking.
+  It catches mistakes, not forgeries.

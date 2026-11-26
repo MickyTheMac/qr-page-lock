@@ -26,3 +26,18 @@ input[type="checkbox"],
 input[type="radio"] {
   accent-color: #4f46e5;
 }
+
+/* House style: never leave one word on its own on the last line of a heading or paragraph. */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+p,
+li,
+dd,
+dt,
+label,
+.prose-text {
+  text-wrap: pretty;
+}

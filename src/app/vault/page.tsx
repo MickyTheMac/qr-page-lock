@@ -22,7 +22,7 @@ import { createPasskey, forgetRoot, passkeysAvailable, recallRoot, rememberRoot,
 import { ActiveService, getService } from "@/lib/service-config";
 import { baseName, download, readFile } from "@/lib/download";
 import { FileDrop } from "@/components/FileDrop";
-import { Notice, PageHeader, btnPrimary, btnSecondary, card, inputCls, linkBtn } from "@/components/ui";
+import { Notice, PageHeader, btnPrimary, btnRow, btnSecondary, card, inputCls, linkBtn } from "@/components/ui";
 import { CameraIcon, CheckCircleIcon, DownloadIcon, FileIcon, KeyIcon, LockIcon, MailIcon, ShieldCheckIcon, SpinnerIcon, UsersIcon } from "@/components/icons";
 
 /**
@@ -263,7 +263,7 @@ function CodeStep({
         autoFocus
       />
       {err && <p className="text-sm text-red-700">{err}</p>}
-      <div className="flex flex-wrap gap-3">
+      <div className={btnRow}>
         <button className={btnPrimary} disabled={busy || code.length !== 6}>
           {busy && <SpinnerIcon size={16} />} Log in
         </button>
@@ -369,7 +369,7 @@ function SetupStep({
             ))}
           </div>
           {err && <p className="text-sm text-red-700">{err}</p>}
-          <div className="flex flex-wrap gap-3">
+          <div className={btnRow}>
             <button className={btnPrimary} disabled={busy || !answered}>
               {busy ? <SpinnerIcon size={16} /> : <LockIcon size={16} />} Create my vault
             </button>
@@ -756,28 +756,30 @@ function DocCard({ svc, me, doc, onChange }: { svc: ActiveService; me: VaultIden
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold text-slate-900">{doc.meta ? baseName(doc.meta.name).replace(/\.png$/i, "") : "Document"}</div>
           <div className="text-xs text-slate-500">
-            Saved {new Date(doc.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+            Saved <span className="whitespace-nowrap">{new Date(doc.createdAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}</span>
             {doc.meta?.documentId && <> · Document {groupDocId(doc.meta.documentId)}</>}
             {doc.meta?.photoSealDigest && (
               <>
                 {" "}
-                · Sealed photo <span className="font-mono">{shortFingerprint(doc.meta.photoSealDigest)}</span>
+                · Sealed photo <span className="font-mono whitespace-nowrap">{shortFingerprint(doc.meta.photoSealDigest)}</span>
               </>
             )}
             {doc.meta?.manifestDigest && (
               <>
                 {" "}
-                · Fingerprint <span className="font-mono">{shortFingerprint(doc.meta.manifestDigest)}</span>
+                · Fingerprint <span className="font-mono whitespace-nowrap">{shortFingerprint(doc.meta.manifestDigest)}</span>
               </>
             )}
           </div>
         </div>
-        <button className={btnPrimary} onClick={open} disabled={!!busy}>
-          {busy === "open" ? <SpinnerIcon size={16} /> : <DownloadIcon size={16} />} Open
-        </button>
-        <button className={btnSecondary} onClick={() => setSharing(!sharing)}>
-          <UsersIcon size={16} /> Share
-        </button>
+        <div className={`${btnRow} w-full sm:w-fit`}>
+          <button className={btnPrimary} onClick={open} disabled={!!busy}>
+            {busy === "open" ? <SpinnerIcon size={16} /> : <DownloadIcon size={16} />} Open
+          </button>
+          <button className={btnSecondary} onClick={() => setSharing(!sharing)}>
+            <UsersIcon size={16} /> Share
+          </button>
+        </div>
       </div>
 
       {doc.others.length > 0 && (
@@ -879,7 +881,7 @@ function SafetyCheck({ label, code, busy, onConfirm, onCancel }: { label: string
         {code}
       </div>
       <div className="text-xs text-slate-500">If the codes are different, do not continue: someone may be pretending to be them.</div>
-      <div className="flex flex-wrap gap-3">
+      <div className={btnRow}>
         <button className={btnPrimary} onClick={onConfirm} disabled={busy}>
           {busy ? <SpinnerIcon size={16} /> : <CheckCircleIcon size={16} />} The codes match: give access
         </button>
@@ -893,14 +895,16 @@ function SafetyCheck({ label, code, busy, onConfirm, onCancel }: { label: string
 
 function RemoveButton({ confirm, setConfirm, onRemove }: { confirm: boolean; setConfirm: (v: boolean) => void; onRemove: () => void }) {
   return confirm ? (
-    <div className="flex flex-wrap items-center gap-3 text-sm text-slate-700">
-      Remove from your vault? The other signer keeps their copy.
-      <button className={btnSecondary} onClick={onRemove}>
-        Yes, remove it
-      </button>
-      <button className={linkBtn} onClick={() => setConfirm(false)}>
-        Keep it
-      </button>
+    <div className="space-y-2 text-sm text-slate-700">
+      <p>Remove from your vault? The other signer keeps their copy.</p>
+      <div className={btnRow}>
+        <button className={btnSecondary} onClick={onRemove}>
+          Yes, remove it
+        </button>
+        <button className={btnSecondary} onClick={() => setConfirm(false)}>
+          Keep it
+        </button>
+      </div>
     </div>
   ) : (
     <button className="text-xs text-slate-500 underline underline-offset-2 hover:text-red-700" onClick={() => setConfirm(true)}>

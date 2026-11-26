@@ -126,16 +126,16 @@ export default function Home() {
             page and links to the pages before and after it, so a swapped, missing, added, reordered or edited page shows
             up straight away.
           </p>
-          <div className="flex flex-wrap gap-3">
+          <div className="grid gap-3 sm:w-fit sm:grid-flow-col sm:auto-cols-fr">
             <Link
               href="/create/"
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-600/25 transition hover:bg-indigo-700"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-indigo-600/25 transition hover:bg-indigo-700"
             >
               <FileSealIcon size={18} /> Seal a document
             </Link>
             <Link
               href="/verify/"
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:border-indigo-400 hover:text-indigo-700"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-800 transition hover:border-indigo-400 hover:text-indigo-700"
             >
               <SearchCheckIcon size={18} /> Check a copy
             </Link>

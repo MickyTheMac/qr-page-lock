@@ -1,16 +1,35 @@
 "use client";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
-import { CameraIcon, CheckCircleIcon, DownloadIcon, LockIcon, RefreshIcon, SearchCheckIcon, SpinnerIcon, ShieldCheckIcon } from "@/components/icons";
-import { Notice, PageHeader, Step, btnPrimary, btnSecondary, card, inputCls, linkBtn } from "@/components/ui";
+import { AlertIcon, CameraIcon, CheckCircleIcon, DownloadIcon, LockIcon, RefreshIcon, SearchCheckIcon, SpinnerIcon, ShieldCheckIcon } from "@/components/icons";
+import { Notice, PageHeader, Step, btnPrimary, btnRow, btnSecondary, card, inputCls, linkBtn } from "@/components/ui";
 import { download } from "@/lib/download";
 import { ActiveService, getService } from "@/lib/service-config";
-import { EMPTY_DETAILS, PhotoDetails, PhotoSeal, RgbImage, assembleSealedPng, makeSeal, sealPhoto, shortFingerprint } from "@/lib/pagelock";
+import {
+  AlignScore,
+  CaptureChecks,
+  EMPTY_DETAILS,
+  LooksCheck,
+  PhotoDetails,
+  PhotoSeal,
+  RgbImage,
+  TARGET_RATIO,
+  assembleSealedPng,
+  cropRect,
+  looksMessage,
+  makeSeal,
+  sealPhoto,
+  shortFingerprint,
+  targetRect,
+} from "@/lib/pagelock";
+import { checkLooks, warmUpReader } from "@/lib/photo-ocr";
 import {
   PendingPhoto,
   VAULT_FILE_LIMIT,
+  frameAlignment,
   getPendingPhoto,
   grabFrame,
+  previewUrl,
   makePending,
   pngUrl,
   savePhotoToVault,
@@ -35,6 +54,8 @@ type Cam =
 
 type Work =
   | { kind: "idle" }
+  | { kind: "checking"; photo: RgbImage; url: string }
+  | { kind: "doubt"; photo: RgbImage; url: string; at: Date; camera: string; looks: LooksCheck; linedUp: boolean | null }
   | { kind: "sealing" }
   | { kind: "retry"; photo: RgbImage; seal: PhotoSeal; text: string }
   | { kind: "done"; photo: PendingPhoto; url: string };
@@ -56,6 +77,7 @@ export default function PhotoPage() {
   const [details, setDetails] = useState<PhotoDetails>({ ...EMPTY_DETAILS, what: KINDS[0] });
   const [cam, setCam] = useState<Cam>({ kind: "off" });
   const [facing, setFacing] = useState<"environment" | "user">("environment");
+  const [align, setAlign] = useState<{ sides: AlignScore["sides"]; ready: boolean; struggling: boolean } | null>(null);
   const [work, setWork] = useState<Work>(() => {
     // Coming back from the vault: the photo just sealed is still here.
     const p = getPendingPhoto();
@@ -88,6 +110,7 @@ export default function PhotoPage() {
       const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
       const label = stream.getVideoTracks()[0]?.label ?? "";
       setFacing(want);
+      warmUpReader();
       setCam({ kind: "live", stream, label, canSwitch: devices.filter((d) => d.kind === "videoinput").length > 1 });
     } catch (e) {
       setCam({ kind: "error", text: cameraError(e) });
@@ -113,21 +136,56 @@ export default function PhotoPage() {
     }
   };
 
-  const take = async () => {
+  const ratio = TARGET_RATIO[details.what] ?? null;
+
+  // While the camera is on: a few times a second, check whether the document fills the target.
+  useEffect(() => {
+    if (cam.kind !== "live" || ratio === null) return;
+    let steady = 0;
+    const started = Date.now();
+    const t = setInterval(() => {
+      const v = video.current;
+      if (!v) return;
+      const sc = frameAlignment(v, ratio);
+      if (!sc) return;
+      steady = sc.aligned ? steady + 1 : 0;
+      setAlign({ sides: sc.sides, ready: steady >= 3, struggling: Date.now() - started > 15000 });
+    }, 200);
+    return () => {
+      clearInterval(t);
+      setAlign(null);
+    };
+  }, [cam, ratio]);
+
+  const seal = async (photo: RgbImage, at: Date, camera: string, capture: CaptureChecks) => {
+    const sealObj = await makeSeal(photo, { details, camera, capturedAt: at, capture });
+    await finish(photo, sealObj);
+  };
+
+  const take = async (linedUp: boolean | null) => {
     if (cam.kind !== "live" || !video.current) return;
+    const v = video.current;
     let photo: RgbImage;
     try {
-      photo = grabFrame(video.current);
+      const crop = ratio === null ? undefined : cropRect(v.videoWidth, v.videoHeight, targetRect(v.videoWidth, v.videoHeight, ratio));
+      photo = grabFrame(v, crop);
     } catch (e) {
       setCam({ kind: "error", text: errText(e) });
       return;
     }
+    const at = new Date();
     const settings = cam.stream.getVideoTracks()[0]?.getSettings?.() ?? {};
+    const camera = [cam.label, settings.facingMode].filter(Boolean).join(", ");
     stop(cam.stream);
     setCam({ kind: "off" });
-    // Sealed at once: fingerprinted here, before anything else can touch it.
-    const seal = await makeSeal(photo, { details, camera: [cam.label, settings.facingMode].filter(Boolean).join(", ") });
-    await finish(photo, seal);
+    // Check on this device that it looks like what was chosen, then seal at once.
+    setWork({ kind: "checking", photo, url: previewUrl(photo) });
+    const looks = await checkLooks(details.what, photo);
+    if (looks && looks.result === "not-recognised") {
+      setWork({ kind: "doubt", photo, url: previewUrl(photo), at, camera, looks, linedUp });
+      return;
+    }
+    await seal(photo, at, camera, { linedUp, looks });
   };
 
   const again = () => {
@@ -140,9 +198,9 @@ export default function PhotoPage() {
   return (
     <div className="space-y-6">
       <PageHeader icon={<CameraIcon size={24} />} title="Take a sealed photo" tone="sky">
-        Take a picture of a licence, passport or document. PageLock seals it the moment it is taken, so anyone you send
-        it to can check later that <strong>not one pixel has changed</strong>. Only the picture&apos;s fingerprint is
-        sent to PageLock, never the picture.
+        Take a picture of a licence, passport or document. PageLock checks it looks right and seals it straight away, so
+        anyone you send it to can check later that <strong>not one pixel has changed</strong>. Only the picture&apos;s
+        fingerprint is sent to PageLock, never the picture.
       </PageHeader>
 
       {svc?.demo && (
@@ -186,21 +244,19 @@ export default function PhotoPage() {
         <Step n={2} icon={<CameraIcon size={18} />} title="Take the picture" hint="Straight from the camera. Pictures from your gallery cannot be sealed." done={work.kind === "done"}>
           {work.kind === "idle" && (
             <div className="space-y-3">
-              <div className="relative overflow-hidden rounded-xl bg-slate-900" style={{ aspectRatio: "4 / 3" }}>
-                {cam.kind === "live" ? (
-                  <video ref={video} playsInline muted className="h-full w-full object-contain" data-testid="camera" />
-                ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-slate-300">
-                    {cam.kind === "starting" ? <SpinnerIcon size={28} /> : <CameraIcon size={36} />}
-                    {cam.kind === "starting" ? "Starting the camera…" : "The camera is off"}
-                  </div>
-                )}
-              </div>
+              <Viewfinder video={video} cam={cam} ratio={ratio} align={align} />
               {cam.kind === "error" && <Notice tone="error">{cam.text}</Notice>}
-              <div className="flex flex-wrap gap-2">
+              {cam.kind === "live" && ratio !== null && (
+                <p className={`text-sm font-medium ${align?.ready ? "text-emerald-700" : "text-slate-600"}`} data-testid="target-hint">
+                  {align?.ready
+                    ? `Lined up. Hold still and press Take and seal.`
+                    : `Move closer or further away until the ${details.what.toLowerCase()} fills the frame and its edges sit on the white lines.`}
+                </p>
+              )}
+              <div className={btnRow}>
                 {cam.kind === "live" ? (
                   <>
-                    <button className={`${btnPrimary} !px-6`} onClick={take}>
+                    <button className={btnPrimary} onClick={() => take(ratio === null ? null : true)} disabled={ratio !== null && !align?.ready}>
                       <CameraIcon size={18} /> Take and seal
                     </button>
                     {cam.canSwitch && (
@@ -215,7 +271,42 @@ export default function PhotoPage() {
                   </button>
                 )}
               </div>
-              <p className="text-xs text-slate-500">Tip: lay the card flat on a dark surface, fill the frame and avoid glare.</p>
+              {cam.kind === "live" && ratio !== null && align?.struggling && !align.ready && (
+                <p className="text-xs text-slate-500">
+                  Still not lining up? Put it on a plain dark surface, out of shadow. If it still will not line up,{" "}
+                  <button className={linkBtn} onClick={() => take(false)}>
+                    take it anyway
+                  </button>{" "}
+                  (the seal will say it was not lined up).
+                </p>
+              )}
+              {cam.kind !== "live" && <p className="text-xs text-slate-500">Tip: lay the card flat on a plain dark surface and avoid glare.</p>}
+            </div>
+          )}
+          {work.kind === "checking" && (
+            <div className="space-y-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={work.url} alt="The picture you just took" className="w-full rounded-xl border border-slate-200" />
+              <div className="flex items-center gap-2 text-slate-600">
+                <SpinnerIcon /> Checking it looks like a {details.what.toLowerCase()}…
+              </div>
+            </div>
+          )}
+          {work.kind === "doubt" && (
+            <div className="space-y-3" data-testid="doubt">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={work.url} alt="The picture you just took" className="w-full rounded-xl border border-slate-200" />
+              <Notice tone="warn">
+                {looksMessage(work.looks)} Take it again, or seal it anyway: the seal will then say it was not recognised.
+              </Notice>
+              <div className={btnRow}>
+                <button className={btnPrimary} onClick={() => setWork({ kind: "idle" })}>
+                  <CameraIcon size={18} /> Take it again
+                </button>
+                <button className={btnSecondary} onClick={() => seal(work.photo, work.at, work.camera, { linedUp: work.linedUp, looks: work.looks })}>
+                  <AlertIcon size={16} /> Seal it anyway
+                </button>
+              </div>
             </div>
           )}
           {work.kind === "sealing" && (
@@ -226,9 +317,11 @@ export default function PhotoPage() {
           {work.kind === "retry" && (
             <div className="space-y-3">
               <Notice tone="error">{work.text}</Notice>
-              <button className={btnPrimary} onClick={() => finish(work.photo, work.seal)}>
-                <RefreshIcon size={16} /> Try again
-              </button>
+              <div className={btnRow}>
+                <button className={btnPrimary} onClick={() => finish(work.photo, work.seal)}>
+                  <RefreshIcon size={16} /> Try again
+                </button>
+              </div>
             </div>
           )}
           {work.kind === "done" && (
@@ -251,7 +344,11 @@ export default function PhotoPage() {
             It stops casual editing. A determined person could still fool a browser camera, for example by photographing a
             screen.
           </li>
-          <li>The details you type ride along inside the file. PageLock never sees them.</li>
+          <li>
+            Before sealing, this device reads the words in the picture to check it looks like the document you chose (for
+            example, a licence says &ldquo;Driving licence&rdquo;). It catches mistakes, not forgeries.
+          </li>
+          <li>The details you type ride along inside the file. PageLock never sees them, or the picture.</li>
         </ul>
       </section>
     </div>
@@ -298,13 +395,19 @@ function Keep({ svc, photo, onAgain }: { svc: ActiveService; photo: PendingPhoto
     <Step n={3} icon={<CheckCircleIcon size={18} />} title="Sealed. Now keep it" done={saved}>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
         <dt className="text-slate-500">Sealed by PageLock</dt>
-        <dd className="font-medium text-slate-900">{sealedWhen(r.sealedAt)}</dd>
+        <dd className="font-medium whitespace-nowrap text-slate-900">{sealedWhen(r.sealedAt)}</dd>
         <dt className="text-slate-500">Fingerprint</dt>
-        <dd className="font-mono text-slate-900">{shortFingerprint(r.sealDigest)}</dd>
+        <dd className="font-mono whitespace-nowrap text-slate-900">{shortFingerprint(r.sealDigest)}</dd>
         {r.seal.details.what && (
           <>
             <dt className="text-slate-500">What it is</dt>
             <dd>{r.seal.details.what}</dd>
+          </>
+        )}
+        {r.seal.capture?.looks && (
+          <>
+            <dt className="text-slate-500">Look check</dt>
+            <dd>{looksMessage(r.seal.capture.looks)}</dd>
           </>
         )}
         {r.seal.details.reference && (
@@ -320,7 +423,7 @@ function Keep({ svc, photo, onAgain }: { svc: ActiveService; photo: PendingPhoto
           </>
         )}
       </dl>
-      <div className="flex flex-wrap gap-2">
+      <div className={btnRow}>
         <button className={btnPrimary} onClick={save} disabled={busy || saved || photo.png.length > VAULT_FILE_LIMIT}>
           {busy ? <SpinnerIcon size={16} /> : <LockIcon size={16} />} {saved ? "Saved in your vault" : "Save locked in my vault"}
         </button>
@@ -341,5 +444,62 @@ function Keep({ svc, photo, onAgain }: { svc: ActiveService; photo: PendingPhoto
         .
       </p>
     </Step>
+  );
+}
+
+/** The live camera with the target drawn over it: everything outside the target is dimmed. */
+function Viewfinder({
+  video,
+  cam,
+  ratio,
+  align,
+}: {
+  video: RefObject<HTMLVideoElement | null>;
+  cam: Cam;
+  ratio: number | null;
+  align: { sides: AlignScore["sides"]; ready: boolean } | null;
+}) {
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const t = size && ratio !== null ? targetRect(size.w, size.h, ratio) : null;
+  const pct = (v: number, of: number) => `${(v / of) * 100}%`;
+  const line = (ok: boolean | undefined) => (align?.ready ? "#10b981" : ok ? "#6ee7b7" : "rgba(255,255,255,0.9)");
+  return (
+    <div className="relative overflow-hidden rounded-xl bg-slate-900" style={{ aspectRatio: size ? `${size.w} / ${size.h}` : "4 / 3" }}>
+      {cam.kind === "live" ? (
+        <video
+          ref={video}
+          playsInline
+          muted
+          className="h-full w-full object-fill"
+          data-testid="camera"
+          onLoadedMetadata={(e) => setSize({ w: e.currentTarget.videoWidth, h: e.currentTarget.videoHeight })}
+        />
+      ) : (
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-sm text-slate-300">
+          {cam.kind === "starting" ? <SpinnerIcon size={28} /> : <CameraIcon size={36} />}
+          {cam.kind === "starting" ? "Starting the camera…" : "The camera is off"}
+        </div>
+      )}
+      {cam.kind === "live" && t && size && (
+        <div
+          aria-hidden="true"
+          data-testid="target"
+          className="pointer-events-none absolute rounded-[3%] transition-colors"
+          style={{
+            left: pct(t.x, size.w),
+            top: pct(t.y, size.h),
+            width: pct(t.w, size.w),
+            height: pct(t.h, size.h),
+            boxShadow: "0 0 0 9999px rgba(15,23,42,0.55)",
+            borderStyle: "solid",
+            borderWidth: 3,
+            borderTopColor: line(align?.sides.top.ok),
+            borderRightColor: line(align?.sides.right.ok),
+            borderBottomColor: line(align?.sides.bottom.ok),
+            borderLeftColor: line(align?.sides.left.ok),
+          }}
+        />
+      )}
+    </div>
   );
 }

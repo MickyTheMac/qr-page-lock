@@ -2,7 +2,7 @@
 import { useEffect, useMemo } from "react";
 import { AlertIcon, CheckCircleIcon, HelpIcon, InfoIcon, ShieldCheckIcon, XCircleIcon } from "./icons";
 import { Notice } from "./ui";
-import { PhotoCheckReport, PhotoCheckStatus, PhotoOutcome, shortFingerprint } from "@/lib/pagelock";
+import { PhotoCheckReport, PhotoCheckStatus, PhotoOutcome, looksMessage, shortFingerprint } from "@/lib/pagelock";
 import { pngUrl, sealedWhen } from "@/lib/photo-ui";
 
 const LOOK: Record<PhotoOutcome, { badge: string; panel: string; Icon: typeof ShieldCheckIcon; plain: string }> = {
@@ -45,9 +45,9 @@ export function PhotoCheckResult({ report, file, publicSealedAt }: { report: Pho
           {r && (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 rounded-2xl border border-slate-200 bg-white p-5 text-sm shadow-sm">
               <dt className="text-slate-500">Sealed by PageLock</dt>
-              <dd className="font-medium text-slate-900">{report.trustedTime ? sealedWhen(report.trustedTime) : "Unknown (no trusted time)"}</dd>
+              <dd className="font-medium whitespace-nowrap text-slate-900">{report.trustedTime ? sealedWhen(report.trustedTime) : "Unknown (no trusted time)"}</dd>
               <dt className="text-slate-500">Device clock said</dt>
-              <dd>{sealedWhen(r.seal.capturedAt)}</dd>
+              <dd className="whitespace-nowrap">{sealedWhen(r.seal.capturedAt)}</dd>
               {d?.what && (
                 <>
                   <dt className="text-slate-500">What it is</dt>
@@ -72,6 +72,18 @@ export function PhotoCheckResult({ report, file, publicSealedAt }: { report: Pho
                   <dd>{d.note}</dd>
                 </>
               )}
+              {r.seal.capture?.looks && (
+                <>
+                  <dt className="text-slate-500">Look check</dt>
+                  <dd>{looksMessage(r.seal.capture.looks)}</dd>
+                </>
+              )}
+              {r.seal.capture && r.seal.capture.linedUp !== null && (
+                <>
+                  <dt className="text-slate-500">Lined up on target</dt>
+                  <dd>{r.seal.capture.linedUp ? "Yes" : "No, taken anyway"}</dd>
+                </>
+              )}
               {r.seal.camera && (
                 <>
                   <dt className="text-slate-500">Camera</dt>
@@ -79,11 +91,11 @@ export function PhotoCheckResult({ report, file, publicSealedAt }: { report: Pho
                 </>
               )}
               <dt className="text-slate-500">Fingerprint</dt>
-              <dd className="font-mono">{shortFingerprint(r.sealDigest)}</dd>
+              <dd className="font-mono whitespace-nowrap">{shortFingerprint(r.sealDigest)}</dd>
               {publicSealedAt !== undefined && (
                 <>
                   <dt className="text-slate-500">Public record</dt>
-                  <dd>{publicSealedAt ? `Found, sealed ${sealedWhen(publicSealedAt)}` : "Not found on this PageLock site"}</dd>
+                  <dd>{publicSealedAt ? (<>Found, sealed <span className="whitespace-nowrap">{sealedWhen(publicSealedAt)}</span></>) : "Not found on this PageLock site"}</dd>
                 </>
               )}
             </dl>
