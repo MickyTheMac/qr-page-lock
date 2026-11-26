@@ -3,7 +3,7 @@ import { useEffect, useMemo } from "react";
 import { AlertIcon, CheckCircleIcon, HelpIcon, InfoIcon, ShieldCheckIcon, XCircleIcon } from "./icons";
 import { Notice } from "./ui";
 import { PhotoCheckReport, PhotoCheckStatus, PhotoOutcome, looksMessage, shortFingerprint } from "@/lib/pagelock";
-import { pngUrl, sealedWhen } from "@/lib/photo-ui";
+import { dayWhen, pngUrl, readSummary, sealedWhen } from "@/lib/photo-ui";
 
 const LOOK: Record<PhotoOutcome, { badge: string; panel: string; Icon: typeof ShieldCheckIcon; plain: string }> = {
   "SEALED AND UNCHANGED": { badge: "bg-emerald-600 text-white", panel: "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white", Icon: ShieldCheckIcon, plain: "Unchanged since it was sealed" },
@@ -54,10 +54,34 @@ export function PhotoCheckResult({ report, file, publicSealedAt }: { report: Pho
                   <dd>{d.what}</dd>
                 </>
               )}
+              {d?.name && (
+                <>
+                  <dt className="text-slate-500">Name</dt>
+                  <dd>{d.name}</dd>
+                </>
+              )}
               {d?.reference && (
                 <>
                   <dt className="text-slate-500">Document number</dt>
-                  <dd>{d.reference}</dd>
+                  <dd className="whitespace-nowrap">{d.reference}</dd>
+                </>
+              )}
+              {d?.born && (
+                <>
+                  <dt className="text-slate-500">Date of birth</dt>
+                  <dd className="whitespace-nowrap">{dayWhen(d.born)}</dd>
+                </>
+              )}
+              {d?.expires && (
+                <>
+                  <dt className="text-slate-500">Expires</dt>
+                  <dd className="whitespace-nowrap">{dayWhen(d.expires)}</dd>
+                </>
+              )}
+              {r.seal.capture?.read && (
+                <>
+                  <dt className="text-slate-500">Read from picture</dt>
+                  <dd>{readSummary(r.seal.capture.read, d?.what ?? "document")}</dd>
                 </>
               )}
               {d?.takenFor && (

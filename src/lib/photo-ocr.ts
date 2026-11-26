@@ -2,7 +2,7 @@
  * Reads the words in a picture, on this device. Uses Tesseract (open source), loaded from PageLock's own site,
  * so the picture never leaves the device. The first use downloads about 7 MB; after that the browser keeps it.
  */
-import { LooksCheck, RgbImage, judgeLooks, rgbToRgba } from "@/lib/pagelock";
+import { LooksCheck, ReadResult, RgbImage, judgeLooks, readFields, rgbToRgba } from "@/lib/pagelock";
 
 type Worker = { recognize(img: HTMLCanvasElement): Promise<{ data: { text: string } }>; setParameters(p: Record<string, string>): Promise<unknown> };
 let worker: Promise<Worker> | null = null;
@@ -39,11 +39,15 @@ export async function readWords(img: RgbImage): Promise<string> {
   return data.text;
 }
 
-/** Null if the check could not run (for example, the reader could not be downloaded). */
-export async function checkLooks(expected: string, img: RgbImage): Promise<LooksCheck | null> {
-  if (expected === "Other") return judgeLooks(expected, "");
+/**
+ * Reads the picture once, then checks it looks like the document chosen and picks out its details (name, number,
+ * dates). Null if the reader could not run (for example, it could not be downloaded).
+ */
+export async function readPicture(expected: string, img: RgbImage): Promise<{ looks: LooksCheck; read: ReadResult } | null> {
+  if (expected === "Other") return { looks: judgeLooks(expected, ""), read: readFields(expected, "") };
   try {
-    return judgeLooks(expected, await readWords(img));
+    const text = await readWords(img);
+    return { looks: judgeLooks(expected, text), read: readFields(expected, text) };
   } catch {
     return null;
   }

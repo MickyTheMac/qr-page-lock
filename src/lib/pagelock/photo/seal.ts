@@ -47,6 +47,10 @@ export interface PhotoDetails {
   /** Who it was taken for, e.g. a customer's name. */
   takenFor: string;
   note: string;
+  /** Read off the document (and checked by the person), only when found: full name, dates as YYYY-MM-DD. */
+  name?: string;
+  born?: string;
+  expires?: string;
 }
 
 export const EMPTY_DETAILS: PhotoDetails = { what: "", reference: "", takenFor: "", note: "" };
@@ -73,6 +77,19 @@ export interface CaptureChecks {
   linedUp: boolean | null;
   /** Whether the words in the picture are the ones that kind of document carries. */
   looks: LooksCheck | null;
+  /** Details read off the document on this device, before the person checked them. */
+  read?: DetailsRead;
+}
+
+export interface DetailsRead {
+  method: "on-device text reading v1";
+  source: "machine lines" | "printed fields";
+  /** Machine lines only: whether every check digit matched. */
+  checkDigitsOk: boolean | null;
+  /** Which details were read, e.g. ["name", "number"]. */
+  found: string[];
+  /** Which of those the person changed before sealing. */
+  changedByPerson: string[];
 }
 
 /** What rides along inside the PNG. */
@@ -157,7 +174,15 @@ export async function makeSeal(
     capturedAt: (opts.capturedAt ?? new Date()).toISOString(),
     source: "pagelock-camera",
     camera: clean(opts.camera ?? "", 120),
-    details: { what: clean(d.what, 80), reference: clean(d.reference, 80), takenFor: clean(d.takenFor, 120), note: clean(d.note, 400) },
+    details: {
+      what: clean(d.what, 80),
+      reference: clean(d.reference, 80),
+      takenFor: clean(d.takenFor, 120),
+      note: clean(d.note, 400),
+      ...(d.name?.trim() ? { name: clean(d.name, 120) } : {}),
+      ...(d.born?.trim() ? { born: clean(d.born, 10) } : {}),
+      ...(d.expires?.trim() ? { expires: clean(d.expires, 10) } : {}),
+    },
     ...(opts.capture ? { capture: opts.capture } : {}),
     salt: randomHex(16),
   };

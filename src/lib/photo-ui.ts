@@ -4,6 +4,7 @@
  */
 import {
   AlignScore,
+  DetailsRead,
   PHOTO_MAX_SIDE,
   Rect,
   scoreAlignment,
@@ -66,6 +67,28 @@ const rgbCss = (c: readonly number[]) => `rgb(${c[0]},${c[1]},${c[2]})`;
 export function sealedWhen(iso: string): string {
   // dateStyle/timeStyle cannot be combined with timeZoneName, so name each part.
   return new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
+}
+
+/** "2026-11-26" to "26 Nov 2026" (a date only, no time zone shift). */
+export function dayWhen(ymd: string): string {
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return ymd;
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+const FIELD_NAMES: Record<string, string> = { name: "name", number: "number", born: "date of birth", expires: "expiry date" };
+
+/** e.g. "Name, number and date of birth read off the passport (check numbers matched). The person changed the name." */
+export function readSummary(r: DetailsRead, what: string): string {
+  const list = (ks: string[]) => {
+    const w = ks.map((k) => FIELD_NAMES[k] ?? k);
+    return w.length <= 1 ? (w[0] ?? "") : `${w.slice(0, -1).join(", ")} and ${w[w.length - 1]}`;
+  };
+  const found = list(r.found);
+  const head = `${found.charAt(0).toUpperCase()}${found.slice(1)} read off the ${what.toLowerCase()}`;
+  const digits = r.checkDigitsOk === true ? " (its check numbers matched)" : r.checkDigitsOk === false ? " (its check numbers did not all match)" : "";
+  const changed = r.changedByPerson.length ? ` The person corrected the ${list(r.changedByPerson)}.` : " The person checked them and made no changes.";
+  return `${head}${digits}.${changed}`;
 }
 
 /** Writes the words into the strip's text area. Only pixels inside that area change. */

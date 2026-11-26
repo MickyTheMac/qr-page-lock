@@ -8,25 +8,31 @@ import { ActiveService, getService } from "@/lib/service-config";
 import {
   AlignScore,
   CaptureChecks,
+  DetailsRead,
   EMPTY_DETAILS,
+  EMPTY_FIELDS,
   LooksCheck,
   PhotoDetails,
   PhotoSeal,
+  ReadFields,
+  ReadResult,
   RgbImage,
   TARGET_RATIO,
   assembleSealedPng,
   cropRect,
+  foundFields,
   looksMessage,
   makeSeal,
   sealPhoto,
   shortFingerprint,
   targetRect,
 } from "@/lib/pagelock";
-import { checkLooks, warmUpReader } from "@/lib/photo-ocr";
+import { readPicture, warmUpReader } from "@/lib/photo-ocr";
 import {
   PendingPhoto,
   VAULT_FILE_LIMIT,
   frameAlignment,
+  dayWhen,
   getPendingPhoto,
   grabFrame,
   previewUrl,
@@ -45,6 +51,19 @@ import {
  */
 
 const KINDS = ["Driving licence", "Passport", "ID card", "Document", "Other"];
+/** Kinds whose name, number and dates PageLock reads off the picture for the person to check. */
+const READS_DETAILS = new Set(["Driving licence", "Passport", "ID card"]);
+
+/** Everything known about a picture just taken, before it is sealed. */
+interface Taken {
+  photo: RgbImage;
+  url: string;
+  at: Date;
+  camera: string;
+  linedUp: boolean | null;
+  looks: LooksCheck | null;
+  read: ReadResult | null;
+}
 
 type Cam =
   | { kind: "off" }
@@ -55,7 +74,8 @@ type Cam =
 type Work =
   | { kind: "idle" }
   | { kind: "checking"; photo: RgbImage; url: string }
-  | { kind: "doubt"; photo: RgbImage; url: string; at: Date; camera: string; looks: LooksCheck; linedUp: boolean | null }
+  | { kind: "doubt"; taken: Taken & { looks: LooksCheck } }
+  | { kind: "review"; taken: Taken }
   | { kind: "sealing" }
   | { kind: "retry"; photo: RgbImage; seal: PhotoSeal; text: string }
   | { kind: "done"; photo: PendingPhoto; url: string };
@@ -157,10 +177,17 @@ export default function PhotoPage() {
     };
   }, [cam, ratio]);
 
-  const seal = async (photo: RgbImage, at: Date, camera: string, capture: CaptureChecks) => {
-    const sealObj = await makeSeal(photo, { details, camera, capturedAt: at, capture });
-    await finish(photo, sealObj);
+  const seal = async (t: Taken, extra?: { fields: ReadFields; read?: DetailsRead }) => {
+    const d: PhotoDetails = extra
+      ? { ...details, reference: extra.fields.number, name: extra.fields.name, born: extra.fields.born, expires: extra.fields.expires }
+      : details;
+    const capture: CaptureChecks = { linedUp: t.linedUp, looks: t.looks, ...(extra?.read ? { read: extra.read } : {}) };
+    const sealObj = await makeSeal(t.photo, { details: d, camera: t.camera, capturedAt: t.at, capture });
+    await finish(t.photo, sealObj);
   };
+
+  /** After the look check: licences, passports and ID cards show what was read for the person to check first. */
+  const next = (t: Taken) => (READS_DETAILS.has(details.what) ? setWork({ kind: "review", taken: t }) : seal(t));
 
   const take = async (linedUp: boolean | null) => {
     if (cam.kind !== "live" || !video.current) return;
@@ -178,14 +205,16 @@ export default function PhotoPage() {
     const camera = [cam.label, settings.facingMode].filter(Boolean).join(", ");
     stop(cam.stream);
     setCam({ kind: "off" });
-    // Check on this device that it looks like what was chosen, then seal at once.
-    setWork({ kind: "checking", photo, url: previewUrl(photo) });
-    const looks = await checkLooks(details.what, photo);
-    if (looks && looks.result === "not-recognised") {
-      setWork({ kind: "doubt", photo, url: previewUrl(photo), at, camera, looks, linedUp });
+    // Read the picture on this device: does it look like what was chosen, and what details does it carry?
+    const url = previewUrl(photo);
+    setWork({ kind: "checking", photo, url });
+    const r = await readPicture(details.what, photo);
+    const t: Taken = { photo, url, at, camera, linedUp, looks: r?.looks ?? null, read: r?.read ?? null };
+    if (t.looks && t.looks.result === "not-recognised") {
+      setWork({ kind: "doubt", taken: { ...t, looks: t.looks } });
       return;
     }
-    await seal(photo, at, camera, { linedUp, looks });
+    await next(t);
   };
 
   const again = () => {
@@ -220,10 +249,17 @@ export default function PhotoPage() {
                 ))}
               </select>
             </label>
-            <label className="block space-y-1 text-sm text-slate-700">
-              <span>Document number (optional)</span>
-              <input className={inputCls} value={details.reference} maxLength={80} onChange={(e) => setDetails({ ...details, reference: e.target.value })} />
-            </label>
+            {READS_DETAILS.has(details.what) ? (
+              <p className="rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                No need to type the name, number or dates. PageLock reads them off the {details.what.toLowerCase()} for you
+                to check before it is sealed.
+              </p>
+            ) : (
+              <label className="block space-y-1 text-sm text-slate-700">
+                <span>Document number (optional)</span>
+                <input className={inputCls} value={details.reference} maxLength={80} onChange={(e) => setDetails({ ...details, reference: e.target.value })} />
+              </label>
+            )}
             <label className="block space-y-1 text-sm text-slate-700">
               <span>Taken for (optional)</span>
               <input
@@ -288,27 +324,28 @@ export default function PhotoPage() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={work.url} alt="The picture you just took" className="w-full rounded-xl border border-slate-200" />
               <div className="flex items-center gap-2 text-slate-600">
-                <SpinnerIcon /> Checking it looks like a {details.what.toLowerCase()}…
+                <SpinnerIcon /> {READS_DETAILS.has(details.what) ? `Reading the ${details.what.toLowerCase()}…` : `Checking it looks like a ${details.what.toLowerCase()}…`}
               </div>
             </div>
           )}
           {work.kind === "doubt" && (
             <div className="space-y-3" data-testid="doubt">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={work.url} alt="The picture you just took" className="w-full rounded-xl border border-slate-200" />
+              <img src={work.taken.url} alt="The picture you just took" className="w-full rounded-xl border border-slate-200" />
               <Notice tone="warn">
-                {looksMessage(work.looks)} Take it again, or seal it anyway: the seal will then say it was not recognised.
+                {looksMessage(work.taken.looks)} Take it again, or seal it anyway: the seal will then say it was not recognised.
               </Notice>
               <div className={btnRow}>
                 <button className={btnPrimary} onClick={() => setWork({ kind: "idle" })}>
                   <CameraIcon size={18} /> Take it again
                 </button>
-                <button className={btnSecondary} onClick={() => seal(work.photo, work.at, work.camera, { linedUp: work.linedUp, looks: work.looks })}>
+                <button className={btnSecondary} onClick={() => next(work.taken)}>
                   <AlertIcon size={16} /> Seal it anyway
                 </button>
               </div>
             </div>
           )}
+          {work.kind === "review" && <Review taken={work.taken} what={details.what} onSeal={(x) => seal(work.taken, x)} onAgain={() => setWork({ kind: "idle" })} />}
           {work.kind === "sealing" && (
             <div className="flex items-center gap-2 text-slate-600">
               <SpinnerIcon /> Sealing your picture…
@@ -348,7 +385,11 @@ export default function PhotoPage() {
             Before sealing, this device reads the words in the picture to check it looks like the document you chose (for
             example, a licence says &ldquo;Driving licence&rdquo;). It catches mistakes, not forgeries.
           </li>
-          <li>The details you type ride along inside the file. PageLock never sees them, or the picture.</li>
+          <li>
+            For licences, passports and ID cards, this device also reads the name, number and dates, and you check them
+            before sealing. Passports and ID cards carry check numbers, so those read very reliably.
+          </li>
+          <li>The details ride along inside the file. PageLock never sees them, or the picture.</li>
         </ul>
       </section>
     </div>
@@ -410,10 +451,28 @@ function Keep({ svc, photo, onAgain }: { svc: ActiveService; photo: PendingPhoto
             <dd>{looksMessage(r.seal.capture.looks)}</dd>
           </>
         )}
+        {r.seal.details.name && (
+          <>
+            <dt className="text-slate-500">Name</dt>
+            <dd>{r.seal.details.name}</dd>
+          </>
+        )}
         {r.seal.details.reference && (
           <>
             <dt className="text-slate-500">Document number</dt>
-            <dd>{r.seal.details.reference}</dd>
+            <dd className="whitespace-nowrap">{r.seal.details.reference}</dd>
+          </>
+        )}
+        {r.seal.details.born && (
+          <>
+            <dt className="text-slate-500">Date of birth</dt>
+            <dd className="whitespace-nowrap">{dayWhen(r.seal.details.born)}</dd>
+          </>
+        )}
+        {r.seal.details.expires && (
+          <>
+            <dt className="text-slate-500">Expires</dt>
+            <dd className="whitespace-nowrap">{dayWhen(r.seal.details.expires)}</dd>
           </>
         )}
         {r.seal.details.takenFor && (
@@ -444,6 +503,78 @@ function Keep({ svc, photo, onAgain }: { svc: ActiveService; photo: PendingPhoto
         .
       </p>
     </Step>
+  );
+}
+
+const FIELD_LABELS: Record<keyof ReadFields, string> = { name: "Full name", number: "Document number", born: "Date of birth", expires: "Expires" };
+
+/** Shows what was read off the document so the person can check it against the picture, and fix it, before sealing. */
+function Review({
+  taken,
+  what,
+  onSeal,
+  onAgain,
+}: {
+  taken: Taken;
+  what: string;
+  onSeal: (x: { fields: ReadFields; read?: DetailsRead }) => void;
+  onAgain: () => void;
+}) {
+  const read = taken.read;
+  const found = read?.source ? foundFields(read) : [];
+  const [f, setF] = useState<ReadFields>(() => ({ ...EMPTY_FIELDS, ...(read?.source ? read.fields : {}) }));
+  const label = (k: keyof ReadFields) => (k === "number" && what === "Driving licence" ? "Licence number" : FIELD_LABELS[k]);
+  const go = () => {
+    const changed = found.filter((k) => f[k].trim() !== read!.fields[k]);
+    onSeal({
+      fields: { name: f.name.trim(), number: f.number.trim(), born: f.born, expires: f.expires },
+      read: read?.source && found.length ? { method: "on-device text reading v1", source: read.source, checkDigitsOk: read.checkDigitsOk, found, changedByPerson: changed } : undefined,
+    });
+  };
+  return (
+    <div className="space-y-3" data-testid="review">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={taken.url} alt="The picture you just took" className="w-full rounded-xl border border-slate-200" />
+      {found.length ? (
+        <Notice tone={read?.checkDigitsOk === false ? "warn" : "info"} title="Check these against the picture">
+          PageLock read these off the {what.toLowerCase()}. Fix anything that is wrong, then seal it.
+          {read?.checkDigitsOk === true && " Its check numbers match, so they are very likely right."}
+          {read?.checkDigitsOk === false && " Some of its check numbers do not match, so look closely."}
+        </Notice>
+      ) : (
+        <Notice tone="info">
+          PageLock could not read the details from this picture. Type them in if you want them sealed with it, or leave
+          them blank.
+        </Notice>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {(Object.keys(FIELD_LABELS) as (keyof ReadFields)[]).map((k) => (
+          <label key={k} className={`block space-y-1 text-sm text-slate-700 ${k === "name" ? "sm:col-span-2" : ""}`}>
+            <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+              <span>{label(k)}</span>
+              {found.includes(k) && <span className="text-xs font-medium whitespace-nowrap text-emerald-700">Read from the picture</span>}
+            </span>
+            <input
+              className={inputCls}
+              type={k === "born" || k === "expires" ? "date" : "text"}
+              value={f[k]}
+              maxLength={k === "name" ? 120 : 80}
+              autoCapitalize="characters"
+              data-testid={`read-${k}`}
+              onChange={(e) => setF({ ...f, [k]: e.target.value })}
+            />
+          </label>
+        ))}
+      </div>
+      <div className={btnRow}>
+        <button className={btnPrimary} onClick={go}>
+          <ShieldCheckIcon size={18} /> Seal it
+        </button>
+        <button className={btnSecondary} onClick={onAgain}>
+          <CameraIcon size={18} /> Take it again
+        </button>
+      </div>
+    </div>
   );
 }
 

@@ -43,3 +43,17 @@ The words on the strip are not covered by the fingerprint; the checker shows the
   (`photo/looks.ts`). If they are missing, the person is told ("Hang on: PageLock can't see a driving licence…") and
   can retake or seal anyway. The result rides along in the seal (`capture.looks`) and is shown when checking.
   It catches mistakes, not forgeries.
+
+## Reading the details off the document
+
+For a driving licence, passport or ID card, the same on-device text reading also picks out the name, document
+number, date of birth and expiry date (`src/lib/pagelock/photo/read.ts`), so the person does not type them:
+
+- **Passports and ID cards:** the machine-readable lines at the bottom (ICAO 9303, TD3 and TD1). Their check digits
+  are verified, and the result (`checkDigitsOk`) is shown and recorded.
+- **Driving licences:** the numbered fields used on UK and EU licences (1 surname, 2 first names, 3 date of birth,
+  4b expiry, 5 licence number), plus the UK licence number pattern. No check digits, so less reliable.
+
+The person always sees what was read next to the picture and can correct it before sealing. The final values go into
+`details` (`name`, `reference`, `born`, `expires`, the last three only when present) and `capture.read` records which
+fields were read and which the person changed. Nothing is sent anywhere.
