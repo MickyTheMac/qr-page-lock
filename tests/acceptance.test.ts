@@ -225,9 +225,4 @@ describe("ambiguous or active PDFs are rejected at CREATE", () => {
   });
 });
 
-describe("signing (Phase 2 — not yet built)", () => {
-  it.todo("valid sequential signatures by both founders -> VERIFIED");
-  it.todo("untrusted signer certificate -> not VERIFIED");
-  it.todo("edit after the first signature -> ALTERED / INVALID");
-  it.todo("timestamp and revocation checks");
-});
+// Signing acceptance tests (brief §12, Phase 2) are in tests/signing.test.ts.
