@@ -98,3 +98,18 @@ describe.skipIf(!URL_)("Postgres store", () => {
     expect(id.certificatePem).toMatch(/BEGIN CERTIFICATE/);
   });
 });
+
+describe("Vercel function build", () => {
+  it("compiles to CommonJS that Node can load (regression: ES module output crashed the live function)", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const { mkdtempSync, symlinkSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join, resolve } = await import("node:path");
+    const out = mkdtempSync(join(tmpdir(), "pagelock-fn-"));
+    const root = resolve(__dirname, "..");
+    execFileSync(process.execPath, [join(root, "node_modules/typescript/bin/tsc"), "-p", join(root, "api/tsconfig.json"), "--outDir", out, "--rootDir", root]);
+    symlinkSync(join(root, "node_modules"), join(out, "node_modules"));
+    const fn = execFileSync(process.execPath, ["-e", `const m=require(${JSON.stringify(join(out, "api/pagelock.js"))});console.log(typeof m.GET, typeof m.POST, typeof m.OPTIONS)`]);
+    expect(fn.toString().trim()).toBe("function function function");
+  }, 60_000);
+});

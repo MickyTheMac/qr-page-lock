@@ -1,0 +1,15 @@
+{
+  // Vercel compiles the serverless function with the tsconfig nearest to it. The root tsconfig (for Next.js)
+  // emits ES modules with extensionless imports, which Node cannot load, so the function is compiled to CommonJS.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "noEmit": false,
+    "incremental": false,
+    "plugins": []
+  },
+  "include": ["./**/*.ts", "../server/**/*.ts", "../src/lib/**/*.ts"],
+  "exclude": ["../src/lib/**/*.test.ts"]
+}
