@@ -3,6 +3,7 @@ import { useState } from "react";
 import { FileDrop } from "@/components/FileDrop";
 import { PdfPreview } from "@/components/PdfPreview";
 import { readFile } from "@/lib/download";
+import { DEMOS, DemoKind, makeDemo } from "@/lib/demo";
 import { CheckStatus, Outcome, ParsedReference, VerifyReport, groupDocId, parseReference, shortFingerprint, verifyPdf } from "@/lib/pagelock";
 
 const OUTCOME_STYLE: Record<Outcome, string> = {
@@ -54,6 +55,30 @@ export default function VerifyPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Check a copy</h1>
         <p className="mt-1 text-neutral-600">Everything happens in this browser. Nothing is uploaded.</p>
+      </div>
+
+      <div className="rounded-xl border border-neutral-200 bg-white p-4">
+        <div className="text-sm font-medium">Try a demo</div>
+        <p className="mt-1 text-sm text-neutral-600">
+          Loads a sample agreement and its genuine reference file, with or without tampering. Then press Check every page.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {(Object.keys(DEMOS) as DemoKind[]).map((k) => (
+            <button
+              key={k}
+              className="rounded-full border border-neutral-300 px-3 py-1 text-xs hover:border-neutral-900"
+              onClick={async () => {
+                const d = await makeDemo(k);
+                setPdf(d.pdf);
+                setRefFile(d.reference);
+                setReport(null);
+                setError(null);
+              }}
+            >
+              {DEMOS[k]}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -32,9 +32,11 @@ file safe. A shared, append-only log would *be* the trusted reference that neith
 data-protection review, and a decision on who runs the log. It does not change the Phase 1 page format: the
 manifest digest it would log already exists.
 
-**Open questions for Micky:** should the log be public (anyone with the document ID can see "agreed by 2
-parties on date X") or private to the two founders? And should agreeing happen per page or once for the
-whole document?
+**Decided (Micky, 26 Nov 2026):** agreeing happens **once for the whole document**, because the manifest
+digest is already the aggregate of every page. Each founder's sign-off signs that one digest.
+
+**Still open:** should the log be public (anyone with the document ID can see "agreed by 2 parties on date X")
+or private to the two founders?
 
 ## Phase 3
 Mobile scanning of printed pages (with stated uncertainty), optional storage, white-label service, API,

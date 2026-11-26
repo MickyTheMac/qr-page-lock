@@ -3,6 +3,7 @@ import { useState } from "react";
 import { FileDrop } from "@/components/FileDrop";
 import { PdfPreview } from "@/components/PdfPreview";
 import { baseName, download, readFile } from "@/lib/download";
+import { makeSampleAgreement } from "@/lib/demo";
 import {
   PrepareResult,
   UnsupportedPdfError,
@@ -84,6 +85,21 @@ export default function CreatePage() {
           setError(null);
         }}
       />
+
+      <p className="-mt-4 text-sm text-neutral-600">
+        No PDF to hand?{" "}
+        <button
+          className="font-medium underline"
+          onClick={async () => {
+            const bytes = await makeSampleAgreement(3);
+            setFile(new File([bytes as BlobPart], "sample-founders-agreement.pdf", { type: "application/pdf" }));
+            setResult(null);
+            setError(null);
+          }}
+        >
+          Use a sample founders&apos; agreement
+        </button>
+      </p>
 
       <button
         onClick={seal}

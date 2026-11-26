@@ -23,7 +23,8 @@ export function PdfPreview({ bytes, scanTest = false }: { bytes: Uint8Array; sca
     (async () => {
       try {
         const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+        pdfjs.GlobalWorkerOptions.workerSrc =
+          ((globalThis as Record<string, unknown>).__PAGELOCK_PDF_WORKER__ as string | undefined) ?? "/pdf.worker.min.mjs";
         const task = pdfjs.getDocument({ data: bytes.slice(), enableXfa: false, stopAtErrors: true });
         const pdf = await task.promise;
         const out: Rendered[] = [];

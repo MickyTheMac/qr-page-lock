@@ -22,6 +22,7 @@ npm test           # 46 acceptance tests (Node)
 npm run build      # static site in ./out (host anywhere, or `npm start`)
 node scripts/e2e.cjs   # browser end-to-end checks in Chromium (after build)
 npm run fixtures   # regenerate ./fixtures (tampered sample PDFs + expected results)
+npm run build:standalone  # whole app as one HTML file in ./dist-standalone (used for the try-out link)
 ```
 
 ## Where things are

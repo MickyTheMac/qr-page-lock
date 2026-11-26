@@ -10,7 +10,8 @@
     "start": "npx serve@14.2.4 out",
     "test": "vitest run",
     "fixtures": "tsx scripts/build-fixtures.cts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:standalone": "node scripts/build-standalone.cjs"
   },
   "dependencies": {
     "jsqr": "1.4.0",
@@ -23,12 +24,14 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "4.3.3",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "22.20.7",
     "@types/pako": "2.0.4",
     "@types/qrcode": "1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "0.25.12",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
