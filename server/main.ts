@@ -5,7 +5,8 @@
  *
  * Environment:
  *   PORT                      default 8787
- *   PAGELOCK_DATA_DIR         where keys, certificates and the log are kept (default ./server-data)
+ *   PAGELOCK_DATABASE_URL     keep everything in this Postgres database (see server/pg-store.ts)
+ *   PAGELOCK_DATA_DIR         otherwise, the folder where keys, certificates and the log are kept (default ./server-data)
  *   PAGELOCK_ALLOWED_ORIGIN   the web app's address, e.g. https://pagelock.example (default *)
  *   PAGELOCK_ADMIN_TOKEN      enables POST /api/admin/revoke
  *   RESEND_API_KEY, PAGELOCK_MAIL_FROM   send email codes through Resend; otherwise codes are printed here
@@ -13,7 +14,9 @@
 import { createServer } from "node:http";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, chmodSync } from "node:fs";
 import { join } from "node:path";
-import { Mailer, PageLockService, ServiceStore } from "../src/lib/pagelock/service/service";
+import { ServiceStore } from "../src/lib/pagelock/service/service";
+import { serviceFromEnv } from "./config";
+import { PgStore } from "./pg-store";
 import { LogEntry } from "../src/lib/pagelock/service/log";
 
 class FileStore implements ServiceStore {
@@ -44,33 +47,12 @@ class FileStore implements ServiceStore {
   }
 }
 
-const consoleMailer: Mailer = {
-  async send(to, subject, text) {
-    console.log(`[mail] to=${to} subject="${subject}"\n       ${text}`);
-  },
-};
-
-function resendMailer(key: string, from: string): Mailer {
-  return {
-    async send(to, subject, text) {
-      const r = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from, to: [to], subject, text }),
-      });
-      if (!r.ok) throw new Error(`Email service answered ${r.status}`);
-    },
-  };
-}
-
 (async () => {
   const env = process.env;
-  const service = await PageLockService.create({
-    store: new FileStore(env.PAGELOCK_DATA_DIR ?? join(process.cwd(), "server-data")),
-    mailer: env.RESEND_API_KEY ? resendMailer(env.RESEND_API_KEY, env.PAGELOCK_MAIL_FROM ?? "PageLock <onboarding@resend.dev>") : consoleMailer,
-    adminToken: env.PAGELOCK_ADMIN_TOKEN,
-    allowedOrigin: env.PAGELOCK_ALLOWED_ORIGIN,
-  });
+  const store = env.PAGELOCK_DATABASE_URL
+    ? await PgStore.connect(env.PAGELOCK_DATABASE_URL)
+    : new FileStore(env.PAGELOCK_DATA_DIR ?? join(process.cwd(), "server-data"));
+  const service = await serviceFromEnv(store, env);
   const port = Number(env.PORT ?? 8787);
   createServer(async (req, res) => {
     const chunks: Buffer[] = [];
