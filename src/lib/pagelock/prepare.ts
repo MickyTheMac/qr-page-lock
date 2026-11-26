@@ -4,6 +4,7 @@ import {
   FONT_BOLD,
   FONT_REGULAR,
   FOOTER_HEIGHT,
+  qrQuietZoneFor,
   FOOTER_XOBJECT,
   MANIFEST_TYPE,
   MAX_FILE_BYTES,
@@ -154,7 +155,7 @@ export async function preparePdf(input: Uint8Array, opts: PrepareOptions = {}): 
     if (o.resources) origDict.Resources = o.resources;
     const origRef = ctx.register(ctx.flateStream(o.content, origDict as never));
 
-    const qr = qrBitmap(payload);
+    const qr = qrBitmap(payload, qrQuietZoneFor(FOOTER_HEIGHT));
     const qrRef = ctx.register(
       ctx.flateStream(qr.bits, {
         Type: "XObject",

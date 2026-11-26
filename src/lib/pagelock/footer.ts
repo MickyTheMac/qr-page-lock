@@ -1,5 +1,5 @@
 import { StandardFontEmbedder, StandardFonts } from "pdf-lib";
-import { FONT_BOLD, FONT_REGULAR, FOOTER_HEIGHT, PRINT_SAFE_BOTTOM, QR_XOBJECT } from "./constants";
+import { FONT_BOLD, FONT_REGULAR, FOOTER_HEIGHT, PRINT_SAFE_BOTTOM, QR_SIZE, QR_XOBJECT } from "./constants";
 import { fmtNum, groupDocId, shortFingerprint } from "./encoding";
 
 function pdfText(s: string): string {
@@ -37,15 +37,15 @@ function footerLayout1(f: FooterInput): string {
 const helvetica = StandardFontEmbedder.for(StandardFonts.Helvetica as unknown as Parameters<typeof StandardFontEmbedder.for>[0]);
 
 /**
- * Layout 2 (current): 1.5-inch band. Everything sits at least 0.5 in above the bottom edge
+ * Layout 2: 1.5-inch band. Everything sits at least 0.5 in above the bottom edge
  * (clear of any printer's unprintable margin) and 0.5 in from the sides. The page number
  * appears once, right-aligned just below the separator line.
  */
 function footerLayout2(f: FooterInput): string {
   const W = f.pageWidth;
-  const F = FOOTER_HEIGHT;
+  const F = 108;
   const x0 = 36; // side margin
-  const y0 = PRINT_SAFE_BOTTOM; // nothing below this
+  const y0 = 36; // layout 2: nothing below 0.5 in (fixed, must not change)
   const qr = 64;
   const tx = x0 + qr + 10;
   const right = W - x0;
@@ -65,6 +65,47 @@ function footerLayout2(f: FooterInput): string {
 }
 
 /**
+ * Layout 3 (current): about 1.14 in (82 pt). Nothing printed in the bottom 0.25 in, 0.5 in clear at the sides,
+ * a smaller QR footprint (same module size, white space instead of a built-in border) and the
+ * text in two columns:
+ *
+ *   [QR]  PageLock  Every page accounted for.                    Page 1 of 3
+ *         Document 7K3M-Q2XR-...           Fingerprint 2420 DB4F 6A19
+ *         Tamper-evident page seal. Not proof of identity or a legal signature.
+ *
+ * On narrow pages the fingerprint drops under the document ID instead of sitting beside it.
+ */
+function footerLayout3(f: FooterInput): string {
+  const W = f.pageWidth;
+  const F = 82;
+  const x0 = 36;
+  const y0 = PRINT_SAFE_BOTTOM;
+  const qr = QR_SIZE;
+  const tx = x0 + qr + 12; // >= 4 modules of white between QR and text
+  const right = W - x0;
+  const w = (t: string, size: number) => helvetica.widthOfTextAtSize(t, size);
+  const pageLabel = `Page ${f.index} of ${f.count}`;
+  const docLabel = `Document ${groupDocId(f.documentId)}`;
+  const fpLabel = `Fingerprint ${shortFingerprint(f.hash)}`;
+  const sideBySide = tx + w(docLabel, 8) + 16 + w(fpLabel, 8) <= right;
+  const rowTop = y0 + 44; // 80
+  const rowMid = y0 + 30; // 66
+  const lines = [
+    "q 0.6 G 0.5 w " + `${x0} ${F - 1} m ${fmtNum(right)} ${F - 1} l S Q`,
+    `q ${qr} 0 0 ${qr} ${x0} ${y0} cm /${QR_XOBJECT} Do Q`,
+    `BT /${FONT_BOLD} 10 Tf 0 g ${tx} ${rowTop} Td ${pdfText("PageLock")} Tj ET`,
+    `BT /${FONT_REGULAR} 7 Tf 0.35 g ${tx + 50} ${rowTop} Td ${pdfText("Every page accounted for.")} Tj ET`,
+    `BT /${FONT_REGULAR} 9 Tf 0 g ${fmtNum(right - w(pageLabel, 9))} ${rowTop} Td ${pdfText(pageLabel)} Tj ET`,
+    `BT /${FONT_REGULAR} 8 Tf 0 g ${tx} ${rowMid} Td ${pdfText(docLabel)} Tj ET`,
+    sideBySide
+      ? `BT /${FONT_REGULAR} 8 Tf 0 g ${fmtNum(right - w(fpLabel, 8))} ${rowMid} Td ${pdfText(fpLabel)} Tj ET`
+      : `BT /${FONT_REGULAR} 8 Tf 0 g ${tx} ${rowMid - 11} Td ${pdfText(fpLabel)} Tj ET`,
+    `BT /${FONT_REGULAR} 6 Tf 0.4 g ${tx} ${sideBySide ? y0 + 14 : y0 + 6} Td ${pdfText("Tamper-evident page seal. Not proof of identity or a legal signature.")} Tj ET`,
+  ];
+  return lines.join("\n") + "\n";
+}
+
+/**
  * The footer drawing instructions. A pure function of its inputs, so the verifier can
  * regenerate it and check the footer was not edited. Drawn inside a form XObject whose
  * BBox is the footer band, so it can never paint over the original page above.
@@ -72,6 +113,7 @@ function footerLayout2(f: FooterInput): string {
 export function footerContent(f: FooterInput, footerHeight: number = FOOTER_HEIGHT): string {
   if (footerHeight === 72) return footerLayout1(f);
   if (footerHeight === 108) return footerLayout2(f);
+  if (footerHeight === 82) return footerLayout3(f);
   throw new Error(`unknown footer layout (${footerHeight}pt)`);
 }
 
