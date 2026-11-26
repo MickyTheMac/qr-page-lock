@@ -22,7 +22,7 @@ import { UnsupportedPdfError } from "./errors";
 import { footerContent, wrapperContent } from "./footer";
 import { ManifestBody, ManifestFile, manifestDigest } from "./manifest";
 import { OriginalPage, isSealedPage, listPages, readOriginalPage } from "./pages";
-import { encodePayload, qrBitmap } from "./qr";
+import { FINGERPRINT_PREFIX_LENGTH, encodePayload, qrBitmap } from "./qr";
 import { assertBasicFile, findActiveContent, loadPdf } from "./safety";
 
 export interface PreparedPage {
@@ -148,6 +148,8 @@ export async function preparePdf(input: Uint8Array, opts: PrepareOptions = {}): 
       hash: m.hash,
       prev: m.prev,
       next: m.next,
+      // Last page: make the code a link to the PageLock site, with the start of the document fingerprint.
+      fingerprintPrefix: m.index === n ? digest.slice(0, FINGERPRINT_PREFIX_LENGTH) : undefined,
     });
     prepared.push({ index: m.index, hash: m.hash, payload });
 

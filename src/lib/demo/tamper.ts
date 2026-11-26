@@ -1,5 +1,6 @@
 /** Tampering helpers used by the acceptance tests and the fixture generator. */
 import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFRef, decodePDFRawStream } from "pdf-lib";
+import { qrBitmap } from "../pagelock/qr";
 
 export async function load(bytes: Uint8Array) {
   return PDFDocument.load(bytes, { updateMetadata: false });
@@ -138,6 +139,17 @@ export async function scrambleQr(prepared: Uint8Array, pageIdx = 0) {
   const w = (img.dict.get(PDFName.of("Width")) as unknown as { asNumber(): number }).asNumber();
   const blank = new Uint8Array(Math.ceil(w / 8) * w).fill(0xff);
   doc.context.assign(qrRef, doc.context.flateStream(blank, { Type: "XObject", Subtype: "Image", Width: w, Height: w, ColorSpace: "DeviceGray", BitsPerComponent: 1 }));
+  return save(doc);
+}
+
+/** Replace a page's QR code with a valid code for different text (same image settings). */
+export async function replaceQrText(prepared: Uint8Array, pageIdx: number, text: string) {
+  const doc = await load(prepared);
+  const foot = doc.context.lookup(xobjects(doc, pageIdx).get(PDFName.of("PLFoot"))) as PDFRawStream;
+  const res = doc.context.lookup(foot.dict.get(PDFName.of("Resources")), PDFDict);
+  const qrRef = res.lookup(PDFName.of("XObject"), PDFDict).get(PDFName.of("PLQR")) as PDFRef;
+  const q = qrBitmap(text, 0);
+  doc.context.assign(qrRef, doc.context.flateStream(q.bits, { Type: "XObject", Subtype: "Image", Width: q.size, Height: q.size, ColorSpace: "DeviceGray", BitsPerComponent: 1 }));
   return save(doc);
 }
 

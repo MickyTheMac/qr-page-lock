@@ -10,6 +10,14 @@ import { END, PROTOCOL, START } from "./constants";
  * what the trusted reference holds.
  *
  *   PL1:<docId>:<index>:<count>:<hash>:<prev|START>:<next|END>
+ *
+ * The LAST page's code may also be a web link, so a phone camera opens the PageLock site:
+ *
+ *   HTTPS://PAGELOCK-INDOL.VERCEL.APP/C/PL1:<docId>:<n>:<n>:<hash>:<prev>:END:<fp16>
+ *
+ * where <fp16> is the first 16 hex characters of the manifest digest (the document fingerprint).
+ * The link carries nothing confidential: only IDs and hashes that are already in every code.
+ * Codes without the link (sealed before it existed) remain valid.
  */
 export interface QrPayload {
   version: string;
@@ -19,20 +27,27 @@ export interface QrPayload {
   hash: string;
   prev: string; // hash or START
   next: string; // hash or END
+  /** Last page only, when the code is a link: first 16 hex characters of the manifest digest. */
+  fingerprintPrefix?: string;
 }
 
+/** Where the last page's code points. Uppercase so the whole code stays in QR alphanumeric mode. */
+export const LINK_BASE = "HTTPS://PAGELOCK-INDOL.VERCEL.APP/C/";
+export const FINGERPRINT_PREFIX_LENGTH = 16;
+
 const HASH = "[0-9A-F]{64}";
-const PAYLOAD_RE = new RegExp(
-  `^(PL1):([0-9A-HJKMNP-TV-Z]{24}):([1-9][0-9]{0,4}):([1-9][0-9]{0,4}):(${HASH}):(${HASH}|${START}):(${HASH}|${END})$`,
-);
+const CORE = `(PL1):([0-9A-HJKMNP-TV-Z]{24}):([1-9][0-9]{0,4}):([1-9][0-9]{0,4}):(${HASH}):(${HASH}|${START}):(${HASH}|${END})`;
+const PAYLOAD_RE = new RegExp(`^${CORE}$`);
+const LINK_RE = new RegExp(`^${LINK_BASE.replace(/[.\/]/g, "\\$&")}${CORE}:([0-9A-F]{${FINGERPRINT_PREFIX_LENGTH}})$`);
 
 export function encodePayload(p: QrPayload): string {
-  return [p.version, p.documentId, p.index, p.count, p.hash, p.prev, p.next].join(":");
+  const core = [p.version, p.documentId, p.index, p.count, p.hash, p.prev, p.next].join(":");
+  return p.fingerprintPrefix ? `${LINK_BASE}${core}:${p.fingerprintPrefix}` : core;
 }
 
 /** Strict parser. Returns null for anything that is not an exact PL1 payload. */
 export function parsePayload(text: string): QrPayload | null {
-  const m = PAYLOAD_RE.exec(text);
+  const m = PAYLOAD_RE.exec(text) ?? LINK_RE.exec(text);
   if (!m) return null;
   const p: QrPayload = {
     version: m[1],
@@ -43,6 +58,9 @@ export function parsePayload(text: string): QrPayload | null {
     prev: m[6],
     next: m[7],
   };
+  if (m[8]) p.fingerprintPrefix = m[8];
+  // Only the last page may carry the link.
+  if (p.fingerprintPrefix && p.index !== p.count) return null;
   if (p.version !== PROTOCOL || p.index > p.count) return null;
   if ((p.index === 1) !== (p.prev === START)) return null;
   if ((p.index === p.count) !== (p.next === END)) return null;

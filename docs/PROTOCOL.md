@@ -60,6 +60,20 @@ PL1:<docId>:<index>:<count>:<hash>:<prev|START>:<next|END>
 - `index` 1-based, `count` total pages, hashes are full SHA-256
 - No document wording, names or file names.
 
+**Last page: phone link.** The last page's code is a web link, so a phone camera opens the PageLock site:
+
+```
+HTTPS://PAGELOCK-INDOL.VERCEL.APP/C/PL1:<docId>:<n>:<n>:<hash>:<prev>:END:<fp16>
+```
+
+- `fp16` = first 16 hex characters of the manifest digest (the document fingerprint). Uppercase keeps the
+  whole code in alphanumeric mode, and the last page's code is no larger than a middle page's.
+- The site's `/C/...` page asks the service `GET /api/public/doc/<docId>` for completed sign-offs (fingerprint and
+  time only) and shows: signed off (fingerprint matches), a different version was signed off, or no sign-off yet.
+- Only that exact host is accepted; a link on any other page, or to any other site, makes the code invalid.
+  The verifier also checks `fp16` against the embedded manifest digest.
+- Codes without the link (sealed before it existed) remain valid.
+
 All page hashes are computed **before** any QR code is created.
 
 ## 4. Manifest

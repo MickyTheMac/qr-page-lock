@@ -424,6 +424,26 @@ export class PageLockService {
     return { manifestDigest, signedOff: true, signedOffAt: mine[required - 1].receivedAt };
   }
 
+  /**
+   * Public, by document ID (as printed on every page): the completed sign-offs for that document number,
+   * each with only its fingerprint and sign-off time. Used when someone scans the last page with a phone.
+   */
+  async publicByDocument(documentId: string) {
+    if (!/^[0-9A-HJKMNP-TV-Z]{24}$/.test(documentId)) throw new HttpError(400, "Malformed document ID.");
+    const log = await this.cfg.store.readLog();
+    const required = this.cfg.requiredSigners ?? 2;
+    const byDigest = new Map<string, LogEntry[]>();
+    for (const e of log) {
+      if (e.submission.statement.documentId !== documentId) continue;
+      const d = e.submission.statement.manifestDigest;
+      byDigest.set(d, [...(byDigest.get(d) ?? []), e]);
+    }
+    const signOffs = [...byDigest.entries()]
+      .filter(([, es]) => es.length >= required)
+      .map(([manifestDigest, es]) => ({ manifestDigest, signedOffAt: es[required - 1].receivedAt }));
+    return { documentId, signOffs };
+  }
+
   async head() {
     const log = await this.cfg.store.readLog();
     const last = log[log.length - 1];
@@ -473,6 +493,8 @@ export class PageLockService {
       if (req.method === "POST" && path === "/api/signoff") return json(200, await this.recordSignOff(await body()));
       let m = path.match(/^\/api\/signoff\/([0-9A-F]{64})$/);
       if (req.method === "GET" && m) return json(200, await this.readSignOff(m[1], req.headers.get("Authorization")));
+      m = path.match(/^\/api\/public\/doc\/([0-9A-Z]{24})$/);
+      if (req.method === "GET" && m) return json(200, await this.publicByDocument(m[1]));
       m = path.match(/^\/api\/public\/([0-9A-F]{64})$/);
       if (req.method === "GET" && m) return json(200, await this.publicStatus(m[1]));
       if (req.method === "POST" && path === "/api/admin/revoke") {
