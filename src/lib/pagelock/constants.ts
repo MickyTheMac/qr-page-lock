@@ -3,8 +3,16 @@ export const PROTOCOL = "PL1";
 export const PAGE_REPRESENTATION = "PL1-PAGE";
 export const MANIFEST_TYPE = "pagelock-manifest";
 
-/** Height of the reserved footer band added BELOW the original page (points; 72pt = 1 inch). */
-export const FOOTER_HEIGHT = 72;
+/**
+ * Height of the reserved footer band added BELOW the original page (points; 72pt = 1 inch).
+ * Layout 2 (current): 1.5 in, with nothing printed in the bottom 0.5 in so a printer's
+ * unprintable margin can never cut off the QR code or text.
+ */
+export const FOOTER_HEIGHT = 108;
+/** Every footer layout ever issued, by band height. Layout 1 (1 in) is kept so older sealed PDFs still verify. */
+export const FOOTER_LAYOUTS = [72, 108] as const;
+/** Nothing is drawn closer than this to the bottom edge of a sealed page (layout 2): 0.5 in. */
+export const PRINT_SAFE_BOTTOM = 36;
 
 /** Names used inside prepared pages. */
 export const ORIGINAL_XOBJECT = "PLOrig";
