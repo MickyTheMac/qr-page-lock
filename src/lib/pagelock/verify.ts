@@ -238,14 +238,18 @@ async function readSealedPage(doc: PDFDocument, leafDict: PDFDict, position: num
 
   // Footer text must be exactly what the QR says (short fingerprint, page x of n, document ID).
   try {
-    const expected = footerContent({
+    const input = {
       pageWidth: W,
       documentId: r.payload.documentId,
       index: r.payload.index,
       count: r.payload.count,
       hash: r.payload.hash,
-    }, F);
-    if (!bytesEq(decodeContentStream(ctx, foot), utf8(expected))) {
+    };
+    const actual = decodeContentStream(ctx, foot);
+    // A last page with a phone link prints the "scan to check" line; the few documents sealed with the
+    // link before that line existed (26 Nov 2026) are accepted without it.
+    const variants = r.payload.fingerprintPrefix ? [true, false] : [false];
+    if (!variants.some((scanHint) => bytesEq(actual, utf8(footerContent({ ...input, scanHint }, F))))) {
       r.footerMismatch = true;
       bad("footer text or layout was edited.");
     }

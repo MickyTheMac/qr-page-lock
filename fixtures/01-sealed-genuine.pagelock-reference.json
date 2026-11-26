@@ -31,6 +31,6 @@
     ]
   },
   "manifestDigest": "5749642B3CE72AC3D259F6EF9C73E0D0D1D6D2DD49C2FE1A4A72E5DDA3892630",
-  "preparedPdfSha256": "F2D7258F74FB7B6203701EB92E84344519B8AA8D3EBD967D44B9F1E16A36B66D",
+  "preparedPdfSha256": "5BB052AE9488585326ACF741DE7996563C00138922212048A6DAA3EDBF40A81A",
   "keepSafe": "Keep this file (or at least the manifestDigest) somewhere the other party cannot change. It is your trusted reference for verifying the agreement later."
 }
