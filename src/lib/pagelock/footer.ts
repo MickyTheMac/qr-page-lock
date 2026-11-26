@@ -13,6 +13,8 @@ export interface FooterInput {
   index: number;
   count: number;
   hash: string;
+  /** Last page with a phone link (layout 3 only): print a line saying the code can be scanned to check. */
+  scanHint?: boolean;
 }
 
 /** Layout 1 (sealed before 26 Nov 2026 evening): 1-inch band. Kept byte-for-byte so old seals still verify. */
@@ -35,6 +37,7 @@ function footerLayout1(f: FooterInput): string {
 }
 
 const helvetica = StandardFontEmbedder.for(StandardFonts.Helvetica as unknown as Parameters<typeof StandardFontEmbedder.for>[0]);
+const helveticaBold = StandardFontEmbedder.for(StandardFonts.HelveticaBold as unknown as Parameters<typeof StandardFontEmbedder.for>[0]);
 
 /**
  * Layout 2: 1.5-inch band. Everything sits at least 0.5 in above the bottom edge
@@ -74,6 +77,9 @@ function footerLayout2(f: FooterInput): string {
  *         Tamper-evident page seal. Not proof of identity or a legal signature.
  *
  * On narrow pages the fingerprint drops under the document ID instead of sitting beside it.
+ *
+ * The last page (whose code is a phone link) also says it can be scanned: right-aligned on the bottom
+ * text row where there is room, otherwise in place of the "Every page accounted for." tagline.
  */
 function footerLayout3(f: FooterInput): string {
   const W = f.pageWidth;
@@ -90,18 +96,31 @@ function footerLayout3(f: FooterInput): string {
   const sideBySide = tx + w(docLabel, 8) + 16 + w(fpLabel, 8) <= right;
   const rowTop = y0 + 44; // 80
   const rowMid = y0 + 30; // 66
+  const disclaimer = "Tamper-evident page seal. Not proof of identity or a legal signature.";
+  const disclaimerY = sideBySide ? y0 + 14 : y0 + 6;
+  let tagline = "Every page accounted for.";
+  let scanLine: string | null = null;
+  if (f.scanHint) {
+    const long = "Scan this QR code with a phone to check this document.";
+    const wb = (t: string, size: number) => helveticaBold.widthOfTextAtSize(t, size);
+    const topRoom = right - w(pageLabel, 9) - 8 - (tx + 50);
+    if (sideBySide && tx + w(disclaimer, 6) + 16 + wb(long, 7) <= right)
+      scanLine = `BT /${FONT_BOLD} 7 Tf 0 g ${fmtNum(right - wb(long, 7))} ${disclaimerY} Td ${pdfText(long)} Tj ET`;
+    else tagline = w("Scan the QR code to check this document.", 7) <= topRoom ? "Scan the QR code to check this document." : "Scan to check.";
+  }
   const lines = [
     "q 0.6 G 0.5 w " + `${x0} ${F - 1} m ${fmtNum(right)} ${F - 1} l S Q`,
     `q ${qr} 0 0 ${qr} ${x0} ${y0} cm /${QR_XOBJECT} Do Q`,
     `BT /${FONT_BOLD} 10 Tf 0 g ${tx} ${rowTop} Td ${pdfText("PageLock")} Tj ET`,
-    `BT /${FONT_REGULAR} 7 Tf 0.35 g ${tx + 50} ${rowTop} Td ${pdfText("Every page accounted for.")} Tj ET`,
+    `BT /${FONT_REGULAR} 7 Tf 0.35 g ${tx + 50} ${rowTop} Td ${pdfText(tagline)} Tj ET`,
     `BT /${FONT_REGULAR} 9 Tf 0 g ${fmtNum(right - w(pageLabel, 9))} ${rowTop} Td ${pdfText(pageLabel)} Tj ET`,
     `BT /${FONT_REGULAR} 8 Tf 0 g ${tx} ${rowMid} Td ${pdfText(docLabel)} Tj ET`,
     sideBySide
       ? `BT /${FONT_REGULAR} 8 Tf 0 g ${fmtNum(right - w(fpLabel, 8))} ${rowMid} Td ${pdfText(fpLabel)} Tj ET`
       : `BT /${FONT_REGULAR} 8 Tf 0 g ${tx} ${rowMid - 11} Td ${pdfText(fpLabel)} Tj ET`,
-    `BT /${FONT_REGULAR} 6 Tf 0.4 g ${tx} ${sideBySide ? y0 + 14 : y0 + 6} Td ${pdfText("Tamper-evident page seal. Not proof of identity or a legal signature.")} Tj ET`,
+    `BT /${FONT_REGULAR} 6 Tf 0.4 g ${tx} ${disclaimerY} Td ${pdfText(disclaimer)} Tj ET`,
   ];
+  if (scanLine) lines.push(scanLine);
   return lines.join("\n") + "\n";
 }
 

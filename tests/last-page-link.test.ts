@@ -2,7 +2,9 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import * as T from "./tamper";
 import { makeSampleAgreement } from "./helpers";
-import { LINK_BASE, PrepareResult, encodePayload, parsePayload, preparePdf, qrBitmap, verifyPdf } from "../src/lib/pagelock";
+import { PDFDict, PDFName, PDFRawStream, PDFRef } from "pdf-lib";
+import { footerContent } from "../src/lib/pagelock/footer";
+import { FOOTER_HEIGHT, LINK_BASE, PrepareResult, encodePayload, parsePayload, preparePdf, qrBitmap, verifyPdf } from "../src/lib/pagelock";
 
 let sealed: PrepareResult;
 beforeAll(async () => {
@@ -56,5 +58,51 @@ describe("last page QR link", () => {
     const r = await verifyPdf(forged);
     expect(r.outcome).toBe("ALTERED / INVALID");
     expect(r.checks.find((c) => c.id === "manifest-binding")?.details.join(" ")).toMatch(/different document fingerprint/);
+  });
+});
+
+const footerText = async (pdf: Uint8Array, pageIdx: number) => {
+  const doc = await T.load(pdf);
+  const xo = doc.getPages()[pageIdx].node.Resources()!.lookup(PDFName.of("XObject"), PDFDict);
+  const ref = xo.get(PDFName.of("PLFoot")) as PDFRef;
+  return { doc, ref, stream: doc.context.lookup(ref) as PDFRawStream };
+};
+
+describe("'scan to check' line on the last page", () => {
+  it("only the last page says it can be scanned", async () => {
+    const texts = sealed.pages.map((p) => parsePayload(p.payload)!).map((p) =>
+      footerContent({ pageWidth: 595.28, documentId: p.documentId, index: p.index, count: p.count, hash: p.hash, scanHint: p.index === p.count }),
+    );
+    expect(texts[0]).not.toMatch(/Scan/);
+    expect(texts[1]).not.toMatch(/Scan/);
+    expect(texts[2]).toMatch(/Scan this QR code with a phone to check this document\./);
+  });
+  it("on a narrow page it replaces the tagline instead, and stays inside the band", () => {
+    const t = footerContent({ pageWidth: 288, documentId: "7K3MQ2XR9VDF4HNC8WBT6JZP", index: 1, count: 1, hash: "A".repeat(64), scanHint: true });
+    expect(t).toMatch(/\(Scan[^)]*\) Tj/);
+    expect(t).not.toMatch(/Every page accounted for/);
+    for (const m of t.matchAll(/ ([\d.]+) ([\d.]+) Td /g)) {
+      expect(Number(m[2])).toBeGreaterThanOrEqual(18);
+      expect(Number(m[2])).toBeLessThan(FOOTER_HEIGHT);
+    }
+  });
+  it("documents sealed with the link but before this line existed still verify", async () => {
+    const { doc, ref, stream } = await footerText(sealed.pdfBytes, 2);
+    const p = parsePayload(sealed.pages[2].payload)!;
+    const old = footerContent({ pageWidth: doc.getPages()[2].getWidth(), documentId: p.documentId, index: p.index, count: p.count, hash: p.hash, scanHint: false });
+    const dict: Record<string, unknown> = {};
+    for (const [k, v] of stream.dict.entries()) if (!["Length", "Filter"].includes(k.asString().slice(1))) dict[k.asString().slice(1)] = v;
+    doc.context.assign(ref, doc.context.flateStream(new TextEncoder().encode(old), dict as never));
+    const r = await verifyPdf(await T.save(doc));
+    expect(r.outcome).toBe("INTERNALLY CONSISTENT");
+  });
+  it("removing the line from a page without a link is still caught as an edit", async () => {
+    const { doc, ref, stream } = await footerText(sealed.pdfBytes, 1);
+    const p = parsePayload(sealed.pages[1].payload)!;
+    const wrong = footerContent({ pageWidth: doc.getPages()[1].getWidth(), documentId: p.documentId, index: p.index, count: p.count, hash: p.hash, scanHint: true });
+    const dict: Record<string, unknown> = {};
+    for (const [k, v] of stream.dict.entries()) if (!["Length", "Filter"].includes(k.asString().slice(1))) dict[k.asString().slice(1)] = v;
+    doc.context.assign(ref, doc.context.flateStream(new TextEncoder().encode(wrong), dict as never));
+    expect((await verifyPdf(await T.save(doc))).outcome).toBe("ALTERED / INVALID");
   });
 });

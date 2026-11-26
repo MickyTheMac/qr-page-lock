@@ -169,7 +169,7 @@ export async function preparePdf(input: Uint8Array, opts: PrepareOptions = {}): 
       }),
     );
     const footRef = ctx.register(
-      ctx.flateStream(utf8(footerContent({ pageWidth: W, documentId, index: m.index, count: n, hash: m.hash })), {
+      ctx.flateStream(utf8(footerContent({ pageWidth: W, documentId, index: m.index, count: n, hash: m.hash, scanHint: m.index === n })), {
         Type: "XObject",
         Subtype: "Form",
         BBox: [0, 0, W, FOOTER_HEIGHT],

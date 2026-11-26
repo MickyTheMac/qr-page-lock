@@ -73,6 +73,8 @@ HTTPS://PAGELOCK-INDOL.VERCEL.APP/C/PL1:<docId>:<n>:<n>:<hash>:<prev>:END:<fp16>
 - Only that exact host is accepted; a link on any other page, or to any other site, makes the code invalid.
   The verifier also checks `fp16` against the embedded manifest digest.
 - Codes without the link (sealed before it existed) remain valid.
+- In layout 3 the last page's footer also prints "Scan this QR code with a phone to check this document." (right-aligned on the
+  bottom text row; on narrow pages it replaces the tagline). Documents sealed with the link before this line existed verify without it.
 
 All page hashes are computed **before** any QR code is created.
 
