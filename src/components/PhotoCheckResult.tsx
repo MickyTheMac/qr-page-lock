@@ -2,7 +2,7 @@
 import { useEffect, useMemo } from "react";
 import { AlertIcon, CheckCircleIcon, HelpIcon, InfoIcon, ShieldCheckIcon, XCircleIcon } from "./icons";
 import { Notice } from "./ui";
-import { PhotoCheckReport, PhotoCheckStatus, PhotoOutcome, looksMessage, shortFingerprint } from "@/lib/pagelock";
+import { PhotoCheckReport, PhotoCheckStatus, PhotoOutcome, formatMessage, looksMessage, shortFingerprint } from "@/lib/pagelock";
 import { dayWhen, pngUrl, readSummary, sealedWhen } from "@/lib/photo-ui";
 
 const LOOK: Record<PhotoOutcome, { badge: string; panel: string; Icon: typeof ShieldCheckIcon; plain: string }> = {
@@ -76,6 +76,14 @@ export function PhotoCheckResult({ report, file, publicSealedAt }: { report: Pho
                 <>
                   <dt className="text-slate-500">Expires</dt>
                   <dd className="whitespace-nowrap">{dayWhen(d.expires)}</dd>
+                </>
+              )}
+              {r.seal.capture?.format && r.seal.capture.format.result !== "not-checked" && (
+                <>
+                  <dt className="text-slate-500">Details check</dt>
+                  <dd className={r.seal.capture.format.result === "does-not-add-up" ? "font-medium text-red-700" : ""}>
+                    {formatMessage(r.seal.capture.format, d?.what ?? "document")}
+                  </dd>
                 </>
               )}
               {r.seal.capture?.read && (

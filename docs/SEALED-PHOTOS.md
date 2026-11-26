@@ -57,3 +57,19 @@ number, date of birth and expiry date (`src/lib/pagelock/photo/read.ts`), so the
 The person always sees what was read next to the picture and can correct it before sealing. The final values go into
 `details` (`name`, `reference`, `born`, `expires`, the last three only when present) and `capture.read` records which
 fields were read and which the person changed. Nothing is sent anywhere.
+
+## Do the details add up?
+
+`src/lib/pagelock/photo/consistency.ts` checks what was read (before the person corrects anything) against the
+document's own rules:
+
+- **Machine lines:** every ICAO check digit (number, birth, expiry, personal number, the whole line), letters and
+  digits in their places (allowing the usual reader swaps such as O and 0), sex M/F/X/<.
+- **UK licence number:** surname code (letters only, MAC as MC, padded with 9), birth date encoding (decade, month with
+  +50 for women, day, year digit) and the initials, against the printed fields 1, 2 and 3.
+- **Dates:** no birth in the future or over 120 years ago, no expiry before birth, issue date (4a) between birth and
+  expiry. An expired document is flagged but not failed.
+
+The first picture that does not add up asks for a clearer retake (glare can cause a misread). A second in a row is
+marked as failed: the person can still seal it as a record, and the seal (`capture.format`), the strip and Check a copy
+all say the details do not add up. Passing does not prove the document is genuine.

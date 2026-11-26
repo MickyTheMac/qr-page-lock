@@ -19,7 +19,10 @@ import {
   RgbImage,
   TARGET_RATIO,
   assembleSealedPng,
+  FormatCheck,
+  checkFormat,
   cropRect,
+  formatMessage,
   foundFields,
   looksMessage,
   makeSeal,
@@ -63,6 +66,8 @@ interface Taken {
   linedUp: boolean | null;
   looks: LooksCheck | null;
   read: ReadResult | null;
+  /** Do the details read off it follow the document's rules? */
+  format: FormatCheck | null;
 }
 
 type Cam =
@@ -104,6 +109,8 @@ export default function PhotoPage() {
     return p ? { kind: "done", photo: p, url: pngUrl(p.png) } : { kind: "idle" };
   });
   const video = useRef<HTMLVideoElement>(null);
+  /** Pictures in a row whose details did not add up. A second one in a row is marked as failed. */
+  const [failures, setFailures] = useState(0);
 
   useEffect(() => {
     getService().then(setSvc);
@@ -181,7 +188,12 @@ export default function PhotoPage() {
     const d: PhotoDetails = extra
       ? { ...details, reference: extra.fields.number, name: extra.fields.name, born: extra.fields.born, expires: extra.fields.expires }
       : details;
-    const capture: CaptureChecks = { linedUp: t.linedUp, looks: t.looks, ...(extra?.read ? { read: extra.read } : {}) };
+    const capture: CaptureChecks = {
+      linedUp: t.linedUp,
+      looks: t.looks,
+      ...(extra?.read ? { read: extra.read } : {}),
+      ...(t.format && t.format.result !== "not-checked" ? { format: t.format } : {}),
+    };
     const sealObj = await makeSeal(t.photo, { details: d, camera: t.camera, capturedAt: t.at, capture });
     await finish(t.photo, sealObj);
   };
@@ -209,7 +221,9 @@ export default function PhotoPage() {
     const url = previewUrl(photo);
     setWork({ kind: "checking", photo, url });
     const r = await readPicture(details.what, photo);
-    const t: Taken = { photo, url, at, camera, linedUp, looks: r?.looks ?? null, read: r?.read ?? null };
+    const format = READS_DETAILS.has(details.what) && r ? checkFormat(details.what, r.read, failures) : null;
+    if (format && format.result !== "not-checked") setFailures(format.attempts);
+    const t: Taken = { photo, url, at, camera, linedUp, looks: r?.looks ?? null, read: r?.read ?? null, format };
     if (t.looks && t.looks.result === "not-recognised") {
       setWork({ kind: "doubt", taken: { ...t, looks: t.looks } });
       return;
@@ -219,6 +233,7 @@ export default function PhotoPage() {
 
   const again = () => {
     setPendingPhoto(null);
+    setFailures(0);
     setWork({ kind: "idle" });
   };
 
@@ -243,7 +258,11 @@ export default function PhotoPage() {
           <fieldset disabled={locked} className="space-y-3">
             <label className="block space-y-1 text-sm text-slate-700">
               <span>What it is</span>
-              <select className={inputCls} value={details.what} onChange={(e) => setDetails({ ...details, what: e.target.value })}>
+              <select className={inputCls} value={details.what} onChange={(e) => {
+                  setDetails({ ...details, what: e.target.value });
+                  setFailures(0);
+                }}
+              >
                 {KINDS.map((k) => (
                   <option key={k}>{k}</option>
                 ))}
@@ -389,6 +408,12 @@ export default function PhotoPage() {
             For licences, passports and ID cards, this device also reads the name, number and dates, and you check them
             before sealing. Passports and ID cards carry check numbers, so those read very reliably.
           </li>
+          <li>
+            It then checks the details follow the document&apos;s own rules: the check numbers in a passport&apos;s machine
+            lines, and a UK licence number against the name and date of birth printed on the card. If they do not add up,
+            it asks for a clearer picture, and if a second picture still does not add up, it will not accept the document.
+            A skilled forger who follows the rules will still pass, and it cannot see holograms.
+          </li>
           <li>The details ride along inside the file. PageLock never sees them, or the picture.</li>
         </ul>
       </section>
@@ -449,6 +474,14 @@ function Keep({ svc, photo, onAgain }: { svc: ActiveService; photo: PendingPhoto
           <>
             <dt className="text-slate-500">Look check</dt>
             <dd>{looksMessage(r.seal.capture.looks)}</dd>
+          </>
+        )}
+        {r.seal.capture?.format && (
+          <>
+            <dt className="text-slate-500">Details check</dt>
+            <dd className={r.seal.capture.format.result === "does-not-add-up" ? "font-medium text-red-700" : ""}>
+              {formatMessage(r.seal.capture.format, r.seal.details.what)}
+            </dd>
           </>
         )}
         {r.seal.details.name && (
@@ -522,6 +555,9 @@ function Review({
 }) {
   const read = taken.read;
   const found = read?.source ? foundFields(read) : [];
+  const fmt = taken.format;
+  const bad = fmt?.result === "does-not-add-up";
+  const firstBad = bad && fmt!.attempts < 2;
   const [f, setF] = useState<ReadFields>(() => ({ ...EMPTY_FIELDS, ...(read?.source ? read.fields : {}) }));
   const label = (k: keyof ReadFields) => (k === "number" && what === "Driving licence" ? "Licence number" : FIELD_LABELS[k]);
   const go = () => {
@@ -535,11 +571,30 @@ function Review({
     <div className="space-y-3" data-testid="review">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={taken.url} alt="The picture you just took" className="w-full rounded-xl border border-slate-200" />
-      {found.length ? (
-        <Notice tone={read?.checkDigitsOk === false ? "warn" : "info"} title="Check these against the picture">
+      {firstBad && (
+        <Notice tone="warn" title="These details do not add up">
+          <p>{fmt!.problems.join(" ")}</p>
+          <p>
+            Glare or a blurred picture can make PageLock misread a letter, so please take it again: flat, straight on and in
+            good light. If a clear picture still does not add up, PageLock will not accept this {what.toLowerCase()}.
+          </p>
+        </Notice>
+      )}
+      {bad && !firstBad && (
+        <Notice tone="error" title="Still does not add up">
+          <p>PageLock cannot accept this {what.toLowerCase()}. {fmt!.problems.join(" ")}</p>
+          <p>You can take it again, or seal it marked as failed to keep a record of what was shown.</p>
+        </Notice>
+      )}
+      {fmt?.result === "adds-up" && (
+        <Notice tone="success" title="These details add up">
+          {fmt.passed.join(" ")} This catches mistakes and careless fakes, not a skilled forgery.
+        </Notice>
+      )}
+      {fmt?.expired && <Notice tone="warn">This {what.toLowerCase()} has expired ({dayWhen(read!.fields.expires)}).</Notice>}
+      {firstBad ? null : found.length ? (
+        <Notice tone="info" title="Check these against the picture">
           PageLock read these off the {what.toLowerCase()}. Fix anything that is wrong, then seal it.
-          {read?.checkDigitsOk === true && " Its check numbers match, so they are very likely right."}
-          {read?.checkDigitsOk === false && " Some of its check numbers do not match, so look closely."}
         </Notice>
       ) : (
         <Notice tone="info">
@@ -547,6 +602,7 @@ function Review({
           them blank.
         </Notice>
       )}
+      {!firstBad && (
       <div className="grid gap-3 sm:grid-cols-2">
         {(Object.keys(FIELD_LABELS) as (keyof ReadFields)[]).map((k) => (
           <label key={k} className={`block space-y-1 text-sm text-slate-700 ${k === "name" ? "sm:col-span-2" : ""}`}>
@@ -566,14 +622,32 @@ function Review({
           </label>
         ))}
       </div>
-      <div className={btnRow}>
-        <button className={btnPrimary} onClick={go}>
-          <ShieldCheckIcon size={18} /> Seal it
-        </button>
-        <button className={btnSecondary} onClick={onAgain}>
-          <CameraIcon size={18} /> Take it again
-        </button>
-      </div>
+      )}
+      {firstBad ? (
+        <div className={btnRow}>
+          <button className={btnPrimary} onClick={onAgain}>
+            <CameraIcon size={18} /> Take it again
+          </button>
+        </div>
+      ) : bad ? (
+        <div className={btnRow}>
+          <button className={btnPrimary} onClick={onAgain}>
+            <CameraIcon size={18} /> Take it again
+          </button>
+          <button className={btnSecondary} onClick={go}>
+            <AlertIcon size={16} /> Seal it, marked as failed
+          </button>
+        </div>
+      ) : (
+        <div className={btnRow}>
+          <button className={btnPrimary} onClick={go}>
+            <ShieldCheckIcon size={18} /> Seal it
+          </button>
+          <button className={btnSecondary} onClick={onAgain}>
+            <CameraIcon size={18} /> Take it again
+          </button>
+        </div>
+      )}
     </div>
   );
 }
