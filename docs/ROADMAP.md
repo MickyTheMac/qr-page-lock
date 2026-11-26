@@ -35,8 +35,9 @@ manifest digest it would log already exists.
 **Decided (Micky, 26 Nov 2026):** agreeing happens **once for the whole document**, because the manifest
 digest is already the aggregate of every page. Each founder's sign-off signs that one digest.
 
-**Still open:** should the log be public (anyone with the document ID can see "agreed by 2 parties on date X")
-or private to the two founders?
+**Decided (Micky, 26 Nov 2026):** the sign-off log is **private to the two founders**. The only things made
+public are each document's fingerprint (manifest digest) and the sign-off time, so anyone can later confirm
+"this exact document was signed off at this time" without learning who signed or what it says.
 
 ## Phase 3
 Mobile scanning of printed pages (with stated uncertainty), optional storage, white-label service, API,
