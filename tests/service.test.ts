@@ -3,7 +3,7 @@
  * ("signed, then double signed"), with only fingerprint + sign-off time public.
  */
 import { beforeAll, describe, expect, it } from "vitest";
-import { makeSampleAgreement } from "./helpers";
+import { makeSampleAgreement, testStore } from "./helpers";
 import {
   Identity,
   MemoryStore,
@@ -36,7 +36,7 @@ async function enrol(name: string, email: string) {
 
 beforeAll(async () => {
   service = await PageLockService.create({
-    store: new MemoryStore(),
+    store: await testStore(),
     mailer: { send: async (to, _s, text) => void mail.push({ to, text }) },
     adminToken: "secret",
   });

@@ -33,7 +33,40 @@ NEXT_PUBLIC_PAGELOCK_SERVICE_URL=http://localhost:8787 npm run dev
 Without `NEXT_PUBLIC_PAGELOCK_SERVICE_URL`, the app uses a **demo service inside the browser** (codes shown on
 screen, keys in browser storage, marked DEMO everywhere). The try-out link uses that.
 
-## Hosting (not set up yet: needs Micky's go-ahead)
-Needs: one small always-on Node process with a private persistent folder (or a database), HTTPS, and an email
-sender for the codes (e.g. Resend: set `RESEND_API_KEY` and `PAGELOCK_MAIL_FROM`). Before real use: privacy
-notice, data-protection review and an independent security review.
+## Hosting: Vercel + a Postgres database of its own (free tiers)
+The repo deploys to Vercel as one project: the static web app from `out/`, plus one function, `api/pagelock.ts`,
+that answers every `/api/...` address (`vercel.json` rewrites them to it). Because a serverless host runs many
+short-lived copies of the service, everything is kept in Postgres (`server/pg-store.ts`):
+
+- `pagelock_kv`: authority keys, the register of issued certificates, pending email checks.
+- `pagelock_log`: the private sign-off log. The database refuses `UPDATE`, `DELETE` and `TRUNCATE` on it.
+- Every write runs in one transaction under a database-wide lock, so two copies can never fork the hash chain.
+- Tables are created on first use; there is no migration step.
+
+Give PageLock **its own database** (for example a second database inside an existing Neon project). Never share
+another app's database: an app that resets its own schema would take the log with it.
+
+Vercel environment variables:
+
+| Name | Value |
+| --- | --- |
+| `PAGELOCK_DATABASE_URL` | the PageLock database's pooled connection string (secret) |
+| `RESEND_API_KEY` | Resend API key (secret) |
+| `PAGELOCK_MAIL_FROM` | e.g. `PageLock <pagelock@your-domain>`; Resend's test sender only delivers to the Resend account owner |
+| `PAGELOCK_ALLOWED_ORIGIN` | the site's own address, e.g. `https://pagelock-xyz.vercel.app` |
+| `NEXT_PUBLIC_PAGELOCK_SERVICE_URL` | the same address (built into the web app, so redeploy after changing it) |
+| `PAGELOCK_ADMIN_TOKEN` | optional, a long random string; enables certificate revocation |
+
+Without `PAGELOCK_DATABASE_URL` and `RESEND_API_KEY` the API answers 503 "not set up yet"; without
+`NEXT_PUBLIC_PAGELOCK_SERVICE_URL` the site keeps using the in-browser demo service.
+
+The database holds the authority's private keys: keep its connection string secret and turn on backups.
+
+Tests against Postgres (throwaway database only, its PageLock tables are dropped):
+```bash
+PAGELOCK_TEST_DATABASE_URL=postgres://... npm run test:pg
+PAGELOCK_DATABASE_URL=postgres://... NEXT_PUBLIC_PAGELOCK_SERVICE_URL=http://localhost:4180 npm run build && node scripts/e2e-hosted.cjs
+```
+`npm run server` also uses Postgres when `PAGELOCK_DATABASE_URL` is set, otherwise the private folder.
+
+Before real use: privacy notice, data-protection review and an independent security review.

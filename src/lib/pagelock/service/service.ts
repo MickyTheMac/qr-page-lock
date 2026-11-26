@@ -39,6 +39,14 @@ export interface ServiceStore {
   put<T>(key: string, value: T): Promise<void>;
   appendLog(entry: LogEntry): Promise<void>;
   readLog(): Promise<LogEntry[]>;
+  /**
+   * Optional, for stores shared by several server processes (e.g. a database behind serverless functions):
+   * run fn while holding a lock that every process respects, with all reads and writes going through the
+   * store handed to fn. Without it, writes are only serialised inside this one process.
+   */
+  withLock?<T>(fn: (store: ServiceStore) => Promise<T>): Promise<T>;
+  /** Optional: store value under key only if the key is empty; returns whatever is stored afterwards. */
+  putIfAbsent?<T>(key: string, value: T): Promise<T>;
 }
 
 export class MemoryStore implements ServiceStore {
@@ -182,7 +190,8 @@ export class PageLockService {
         logKey: await exportPrivateKeyPem(log.privateKey),
         logPublic: b64encode(u8(await subtle().exportKey("spki", log.publicKey))),
       };
-      await this.cfg.store.put("keys", k);
+      if (this.cfg.store.putIfAbsent) k = await this.cfg.store.putIfAbsent("keys", k);
+      else await this.cfg.store.put("keys", k);
     }
     const caCert = certFromPem(k.caCert);
     this.keys = {
@@ -193,9 +202,11 @@ export class PageLockService {
     };
   }
 
-  /** Serialises writes so the hash chain never forks. */
-  private exclusive<T>(fn: () => Promise<T>): Promise<T> {
-    const run = this.lock.then(fn, fn);
+  /** Serialises writes so the hash chain never forks (across processes too, when the store supports withLock). */
+  private exclusive<T>(fn: (store: ServiceStore) => Promise<T>): Promise<T> {
+    const store = this.cfg.store;
+    const locked = () => (store.withLock ? store.withLock(fn) : fn(store));
+    const run = this.lock.then(locked, locked);
     this.lock = run.catch(() => undefined);
     return run;
   }
@@ -248,18 +259,18 @@ export class PageLockService {
   async finishEnrolment(body: { enrolmentId?: string; code?: string }) {
     const id = String(body.enrolmentId ?? "");
     if (!/^[0-9a-f]{32}$/.test(id)) throw new HttpError(400, "Unknown request.");
-    return this.exclusive(async () => {
-      const e = await this.cfg.store.get<Enrolment>(`enrol:${id}`);
+    return this.exclusive(async (store) => {
+      const e = await store.get<Enrolment>(`enrol:${id}`);
       if (!e || e.done) throw new HttpError(400, "Unknown or finished request. Start again.");
       if (e.expires < this.now().getTime()) throw new HttpError(400, "The code has expired. Start again.");
       if (e.attempts >= 5) throw new HttpError(429, "Too many wrong codes. Start again.");
       if ((await sha256Hex(utf8(String(body.code ?? "").trim()))) !== e.codeHash) {
         e.attempts++;
-        await this.cfg.store.put(`enrol:${id}`, e);
+        await store.put(`enrol:${id}`, e);
         throw new HttpError(400, "That code is not right.");
       }
       e.done = true;
-      await this.cfg.store.put(`enrol:${id}`, e);
+      await store.put(`enrol:${id}`, e);
       const pub = await subtle().importKey("spki", ab(b64decode(e.publicKey)), EC_ALG, true, ["verify"]);
       const cert = await issueCertificate({
         kind: "signer",
@@ -268,20 +279,20 @@ export class PageLockService {
         issuer: this.keys.ca,
       });
       const issued: IssuedCert = { serial: serialHex(cert), sha256: await certFingerprint(cert), name: e.name, email: e.email, issuedAt: this.now().toISOString() };
-      const reg = (await this.cfg.store.get<IssuedCert[]>("certs")) ?? [];
+      const reg = (await store.get<IssuedCert[]>("certs")) ?? [];
       reg.push(issued);
-      await this.cfg.store.put("certs", reg);
+      await store.put("certs", reg);
       return { certificate: certPem(cert), chain: [certPem(this.keys.ca.cert)] };
     });
   }
 
   async revoke(serial: string) {
-    return this.exclusive(async () => {
-      const reg = (await this.cfg.store.get<IssuedCert[]>("certs")) ?? [];
+    return this.exclusive(async (store) => {
+      const reg = (await store.get<IssuedCert[]>("certs")) ?? [];
       const c = reg.find((x) => x.serial === serial.toUpperCase());
       if (!c) throw new HttpError(404, "No such certificate.");
       c.revokedAt ??= this.now().toISOString();
-      await this.cfg.store.put("certs", reg);
+      await store.put("certs", reg);
       return { revoked: c.serial, at: c.revokedAt };
     });
   }
@@ -350,8 +361,8 @@ export class PageLockService {
     const skew = Math.abs(new Date(st.statedAt).getTime() - this.now().getTime());
     if (!(skew < 10 * 60_000)) throw new HttpError(400, "The sign-off time is too far from the server's clock.");
 
-    return this.exclusive(async () => {
-      const log = await this.cfg.store.readLog();
+    return this.exclusive(async (store) => {
+      const log = await store.readLog();
       const mine = log.filter((e) => e.submission.statement.manifestDigest === st.manifestDigest);
       const required = this.cfg.requiredSigners ?? 2;
       if (mine.length >= required) throw new HttpError(409, "This document has already been signed off by all founders.");
@@ -371,7 +382,7 @@ export class PageLockService {
         serverSignature: await signBytes(this.keys.log, utf8(entryHash)),
         timestampToken: b64encode(await issueTimestampToken(hashBytes, this.keys.tsa)),
       };
-      await this.cfg.store.appendLog(entry);
+      await store.appendLog(entry);
       const complete = mine.length + 1 >= required;
       return { entry, complete, signedOffAt: complete ? entry.receivedAt : null };
     });
