@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import jsQR from "jsqr";
 import { FOOTER_HEIGHT, parsePayload } from "@/lib/pagelock";
+import { AlertIcon, CheckCircleIcon, SpinnerIcon, XCircleIcon } from "./icons";
 
 interface Rendered {
   url: string;
@@ -56,18 +57,39 @@ export function PdfPreview({ bytes, scanTest = false }: { bytes: Uint8Array; sca
     };
   }, [bytes, scanTest]);
 
-  if (error) return <p className="text-sm text-neutral-500">{error}</p>;
+  if (error) return <p className="text-sm text-slate-500">{error}</p>;
+  if (!pages.length)
+    return (
+      <p className="flex items-center gap-2 text-sm text-slate-500">
+        <SpinnerIcon size={16} /> Drawing the pages…
+      </p>
+    );
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
       {pages.map((p, i) => (
-        <figure key={i} className="space-y-1">
+        <figure key={i} className="space-y-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={p.url} alt={`Page ${i + 1}`} className="w-full rounded border border-neutral-200 bg-white shadow-sm" />
-          <figcaption className="flex justify-between text-xs text-neutral-500">
-            <span>Page {i + 1}</span>
-            {p.scan === "ok" && <span className="text-emerald-700">QR scan test: readable</span>}
-            {p.scan === "unreadable" && <span className="text-amber-700">QR scan test: not readable</span>}
-            {p.scan === "not-pagelock" && <span className="text-red-700">QR is not a PageLock code</span>}
+          <img src={p.url} alt={`Page ${i + 1}`} className="w-full rounded-lg border border-slate-200 bg-white shadow-md" />
+          <figcaption className="flex flex-wrap items-center justify-between gap-1 text-xs text-slate-500">
+            <span className="font-medium text-slate-700">Page {i + 1}</span>
+            {p.scan === "ok" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700 ring-1 ring-emerald-200">
+                <CheckCircleIcon size={12} />
+                QR scan test: readable
+              </span>
+            )}
+            {p.scan === "unreadable" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-800 ring-1 ring-amber-200">
+                <AlertIcon size={12} />
+                QR scan test: not readable
+              </span>
+            )}
+            {p.scan === "not-pagelock" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-red-700 ring-1 ring-red-200">
+                <XCircleIcon size={12} />
+                QR is not a PageLock code
+              </span>
+            )}
           </figcaption>
         </figure>
       ))}
