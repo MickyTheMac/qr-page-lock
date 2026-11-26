@@ -1,12 +1,12 @@
 # Roadmap notes
 
-## Phase 2 — two-party signing (not built)
-- Each founder reviews the same sealed PDF, ticks an explicit consent, and applies a PAdES signature
-  (incremental, preserving earlier signatures). Candidate providers/libraries to evaluate separately.
-- Verifier: certificate trust, signer identity, coverage of the whole file, revocation, timestamps,
-  rejection of changes between or after signatures. Then the VERIFIED result becomes possible.
-- Final evidence report (PDF) listing every check.
-- The acceptance tests already contain `todo` placeholders for these cases.
+## Phase 2 — two-party signing (built, in review)
+- Sign page: read every page, two explicit consent ticks, PAdES B-T signature in a new incremental revision.
+- Verifier: trust, identity, coverage, revocation (CRL), timestamps, only-signatures-after-sealing. VERIFIED now possible.
+- Evidence report PDF. Sign-off log ("signed, then double signed") on the PageLock service. See PROTOCOL.md §8, SERVICE.md.
+- **Decided (Micky, 26 Nov 2026):** PageLock's own (free) certificates, issued after an email check.
+- Still to do: hosting the service and an email sender (needs Micky's go-ahead), long-term validation (embedding
+  revocation data, PAdES B-LT/LTA), optional Adobe-trusted certificates, DocMDP certification, privacy notice.
 
 ## Micky's idea: "scan, agree and log" (proposed for Phase 2/3)
 

@@ -18,7 +18,10 @@ esbuild.buildSync({
   target: "es2022",
   outfile: path.join(out, "app.js"),
   alias: { "next/link": path.join(root, "src/standalone/link-shim.tsx") },
-  define: { "process.env.NODE_ENV": '"production"' },
+  define: {
+    "process.env.NODE_ENV": '"production"',
+    "process.env.NEXT_PUBLIC_PAGELOCK_SERVICE_URL": JSON.stringify(process.env.NEXT_PUBLIC_PAGELOCK_SERVICE_URL ?? ""),
+  },
   jsx: "automatic",
   logLevel: "warning",
 });

@@ -50,7 +50,7 @@ describe("genuine documents", () => {
   it("unsigned documents are never reported as VERIFIED", async () => {
     const r = await verifyPdf(genuine.pdfBytes, { reference: ref });
     expect(r.outcome).not.toBe("VERIFIED");
-    expect(status(r, "signatures")).toBe("not-available");
+    expect(status(r, "signatures")).toBe("not-provided");
   });
   it("fingerprints are computed before QR codes and match the manifest", async () => {
     const r = await verifyPdf(genuine.pdfBytes);
@@ -225,9 +225,4 @@ describe("ambiguous or active PDFs are rejected at CREATE", () => {
   });
 });
 
-describe("signing (Phase 2 — not yet built)", () => {
-  it.todo("valid sequential signatures by both founders -> VERIFIED");
-  it.todo("untrusted signer certificate -> not VERIFIED");
-  it.todo("edit after the first signature -> ALTERED / INVALID");
-  it.todo("timestamp and revocation checks");
-});
+// Signing acceptance tests (brief §12, Phase 2) are in tests/signing.test.ts.
