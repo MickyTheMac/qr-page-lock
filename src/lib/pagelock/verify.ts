@@ -22,7 +22,10 @@ import { footerContent, wrapperContent } from "./footer";
 import { ManifestBody, ParsedReference, manifestDigest } from "./manifest";
 import { inheritedNumber, isSealedPage, listPages } from "./pages";
 import { QrPayload, decodeQrBitmap, parsePayload } from "./qr";
-import { assertBasicFile, countRevisions, findActiveContent, loadPdf } from "./safety";
+import { assertBasicFile, findActiveContent, loadPdf } from "./safety";
+import { revisionEnds } from "./sign/incremental";
+import { SignatureInfo, analyzeSignatures } from "./sign/validate";
+import { TrustProfile } from "./sign/trust";
 
 /** Brief §9 result levels. */
 export type Outcome = "VERIFIED" | "REFERENCE MATCH" | "INTERNALLY CONSISTENT" | "ALTERED / INVALID" | "UNABLE TO VERIFY";
@@ -50,10 +53,19 @@ export interface VerifyReport {
   pages: PageResult[];
   documentId: string | null;
   fileSha256: string;
+  /** SHA-256 of the sealed original (revision 1), before any signatures. */
+  sealedSha256: string;
+  manifestDigest: string | null;
+  pageCount: number;
+  signatures: SignatureInfo[];
+  requiredSigners: number;
+  trustName: string | null;
+  trustIsDemo: boolean;
 }
 
 const SUMMARY: Record<Outcome, string> = {
-  VERIFIED: "Content and all required trusted signatures pass every applicable check.",
+  VERIFIED:
+    "Every page is intact and every required signer has a valid, trusted, timestamped signature on this exact file. Nothing was changed after signing.",
   "REFERENCE MATCH":
     "Every page matches the trusted reference you supplied. This shows the content is unchanged. It does NOT establish who signed or agreed to it.",
   "INTERNALLY CONSISTENT":
@@ -251,6 +263,8 @@ async function readEmbeddedManifest(doc: PDFDocument): Promise<{ body?: Manifest
 
 export interface VerifyOptions {
   reference?: ParsedReference | null;
+  /** Which authorities to trust for signatures and timestamps. Without it, signer identity cannot be established. */
+  trust?: TrustProfile | null;
 }
 
 /** VERIFY (brief §2, §9). Never reports an inconclusive check as a pass. */
@@ -259,16 +273,38 @@ export async function verifyPdf(input: Uint8Array, opts: VerifyOptions = {}): Pr
   const add = (id: string, label: string, status: CheckStatus, details: string[] = []) =>
     checks.push({ id, label, status, details });
   const fileSha256 = await sha256Hex(input);
+  const trust = opts.trust ?? null;
+  const ends = revisionEnds(input);
+  // Revision 1 is the sealed original. Later revisions may only add signatures (checked below).
+  const sealed = ends.length > 1 ? input.subarray(0, ends[0]) : input;
+  const sealedSha256 = ends.length > 1 ? await sha256Hex(sealed) : fileSha256;
+  const base = {
+    fileSha256,
+    sealedSha256,
+    trustName: trust?.name ?? null,
+    trustIsDemo: !!trust?.demo,
+    requiredSigners: trust?.requiredSigners ?? 2,
+  };
   const unable = (why: string): VerifyReport => {
     add("read", "File can be read safely", "inconclusive", [why]);
-    add("signatures", "Trusted signatures", "not-available", ["Signing is a Phase 2 feature."]);
-    return { outcome: "UNABLE TO VERIFY", summary: SUMMARY["UNABLE TO VERIFY"], checks, pages: [], documentId: null, fileSha256 };
+    return {
+      outcome: "UNABLE TO VERIFY",
+      summary: SUMMARY["UNABLE TO VERIFY"],
+      checks,
+      pages: [],
+      documentId: null,
+      manifestDigest: null,
+      pageCount: 0,
+      signatures: [],
+      ...base,
+    };
   };
 
   let doc: PDFDocument;
   try {
     assertBasicFile(input, MAX_FILE_BYTES);
-    doc = await loadPdf(input);
+    await loadPdf(input); // the whole file must parse too
+    doc = await loadPdf(sealed);
   } catch (e) {
     return unable(e instanceof UnsupportedPdfError ? e.message : "The file could not be read.");
   }
@@ -278,13 +314,7 @@ export async function verifyPdf(input: Uint8Array, opts: VerifyOptions = {}): Pr
   if (!sealedFlags.some(Boolean)) return unable("No PageLock seals were found in this PDF. It may never have been prepared with PageLock.");
   add("read", "File can be read safely", "pass");
 
-  const revisions = countRevisions(input);
-  add(
-    "revisions",
-    "No edits saved after sealing",
-    revisions <= 1 ? "pass" : "fail",
-    revisions <= 1 ? [] : [`The file contains ${revisions} saved versions. Someone edited and re-saved it after it was sealed.`],
-  );
+  const revisionsAt = checks.length;
 
   const active = findActiveContent(doc);
   add("active", "No scripts, forms or attachments added", active ? "fail" : "pass", active ? [`This PDF ${active}.`] : []);
@@ -434,25 +464,56 @@ export async function verifyPdf(input: Uint8Array, opts: VerifyOptions = {}): Pr
     referencePass = fails.length === 0;
     add("reference", "Matches your trusted reference", referencePass ? "pass" : "fail", [...new Set(fails)]);
     if (ref.kind === "manifest" && ref.file.preparedPdfSha256) {
-      const same = ref.file.preparedPdfSha256 === fileSha256;
+      const same = ref.file.preparedPdfSha256 === sealedSha256;
       add(
         "exact-file",
-        "Exact file is identical to the one prepared",
+        ends.length > 1 ? "Sealed file (before signatures) is identical to the one prepared" : "Exact file is identical to the one prepared",
         same ? "pass" : "fail",
         same ? [] : ["The file's bytes differ from the prepared file, so something outside the visible pages (for example metadata or hidden data) was changed or the file was re-saved."],
       );
     }
   }
-  add("signatures", "Trusted signatures", "not-available", [
-    "Cryptographic signing (PAdES) is planned for Phase 2. Nothing here proves who signed.",
-  ]);
+  // Signatures (Phase 2).
+  const manifestDigestValue = embedded.body && mFails.length === 0 ? embedded.digest! : null;
+  const sig = await analyzeSignatures(input, ends, { documentId: majorityId, manifestDigest: manifestDigestValue, pageCount: N }, trust);
+  const changes = sig.checks.find((c) => c.id === "sig-changes");
+  checks.splice(revisionsAt, 0, {
+    id: "revisions",
+    label: "No edits saved after sealing (other than signatures)",
+    status: ends.length <= 1 ? "pass" : changes?.status === "pass" ? "pass" : "fail",
+    details:
+      ends.length <= 1
+        ? []
+        : changes?.status === "pass"
+          ? [`${ends.length - 1} signature revision(s) added after sealing, and nothing else.`]
+          : [`The file contains ${ends.length} saved versions and at least one is not just a signature. Someone edited and re-saved it after it was sealed.`, ...(changes?.details ?? [])],
+  });
+  for (const c of sig.checks) if (c.id !== "sig-changes") checks.push(c);
 
-  const required = checks.filter((c) => !["signatures", "reference"].includes(c.id));
+  const signatureIds = new Set(sig.checks.map((c) => c.id));
+  const required = checks.filter((c) => !signatureIds.has(c.id) && c.id !== "reference");
   let outcome: Outcome;
   if (checks.some((c) => c.status === "fail")) outcome = "ALTERED / INVALID";
   else if (required.some((c) => c.status === "inconclusive")) outcome = "UNABLE TO VERIFY";
+  else if (sig.allPass && trust) outcome = "VERIFIED";
   else if (referencePass) outcome = "REFERENCE MATCH";
   else outcome = "INTERNALLY CONSISTENT";
 
-  return { outcome, summary: SUMMARY[outcome], checks, pages, documentId: majorityId, fileSha256 };
+  let summary = SUMMARY[outcome];
+  if (outcome !== "VERIFIED" && sig.signatures.length)
+    summary += ` Signatures found: ${sig.signatures.length}, of which ${sig.trustedSigners} fully valid and trusted (${sig.requiredSigners} required).`;
+  if (outcome === "VERIFIED" && trust?.demo)
+    summary += " Note: the signers' certificates come from the PageLock DEMO authority, whose keys are public. This demonstrates the checks; it proves nothing about who signed.";
+
+  return {
+    outcome,
+    summary,
+    checks,
+    pages,
+    documentId: majorityId,
+    manifestDigest: manifestDigestValue,
+    pageCount: N,
+    signatures: sig.signatures,
+    ...base,
+  };
 }

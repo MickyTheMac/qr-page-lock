@@ -50,7 +50,7 @@ describe("genuine documents", () => {
   it("unsigned documents are never reported as VERIFIED", async () => {
     const r = await verifyPdf(genuine.pdfBytes, { reference: ref });
     expect(r.outcome).not.toBe("VERIFIED");
-    expect(status(r, "signatures")).toBe("not-available");
+    expect(status(r, "signatures")).toBe("not-provided");
   });
   it("fingerprints are computed before QR codes and match the manifest", async () => {
     const r = await verifyPdf(genuine.pdfBytes);
