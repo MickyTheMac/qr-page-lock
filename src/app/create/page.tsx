@@ -94,7 +94,7 @@ export default function CreatePage() {
   return (
     <div className="space-y-8">
       <PageHeader icon={<FileSealIcon size={24} />} title="Create a sealed copy">
-        PageLock adds a 1.5-inch band below each page with a QR seal. Your original page content is not moved or covered.
+        PageLock adds a slim (about 1.14-inch) band below each page with a QR seal. Your original page content is not moved or covered.
       </PageHeader>
 
       <Step n={1} icon={<UploadIcon size={18} />} title="Choose the agreement" hint="A PDF on this device. It is never uploaded." done={!!file}>

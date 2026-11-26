@@ -35,6 +35,16 @@ describe("last page QR link", () => {
     expect(old.startsWith("PL1:")).toBe(true);
     expect(parsePayload(old)?.fingerprintPrefix).toBeUndefined();
   });
+  it("a one-page document's only page gets the link and verifies", async () => {
+    const one = await preparePdf(await makeSampleAgreement(1));
+    expect(one.pages).toHaveLength(1);
+    expect(one.pages[0].payload.startsWith(LINK_BASE + "PL1:")).toBe(true);
+    const p = parsePayload(one.pages[0].payload)!;
+    expect(p.prev).toBe("START");
+    expect(p.next).toBe("END");
+    expect(p.fingerprintPrefix).toBe(one.manifest.manifestDigest.slice(0, 16));
+    expect((await verifyPdf(one.pdfBytes)).outcome).toBe("INTERNALLY CONSISTENT");
+  });
   it("genuine document still verifies", async () => {
     const r = await verifyPdf(sealed.pdfBytes);
     expect(r.outcome).toBe("INTERNALLY CONSISTENT");
