@@ -223,6 +223,11 @@ async function revocation(path: pkijs.Certificate[], crls: pkijs.CertificateRevo
   return { status: "pass", detail: notes.join(" ") };
 }
 
+function pdfDateToIso(d: string | null): string | null {
+  const m = d?.match(/^D:(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})Z/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z` : d;
+}
+
 function hexToBytes(h: string): Uint8Array | null {
   if (!/^[0-9A-Fa-f]*$/.test(h) || h.length % 2) return null;
   const out = new Uint8Array(h.length / 2);
@@ -313,7 +318,7 @@ export async function analyzeSignatures(input: Uint8Array, revEnds: number[], fa
     }
     const subFilter = sigDict.get(PDFName.of("SubFilter"))?.toString();
     if (subFilter !== "/ETSI.CAdES.detached") p("integrity", `Unsupported signature format (${subFilter ?? "none"}); PAdES needs ETSI.CAdES.detached.`);
-    info.claimedTime = str(sigDict.get(PDFName.of("M")));
+    info.claimedTime = pdfDateToIso(str(sigDict.get(PDFName.of("M"))));
 
     // Byte range: [0 a b c], gap = exactly the /Contents hex string, ending exactly at this revision's end.
     const br = docs[k].context.lookupMaybe(sigDict.get(PDFName.of("ByteRange")), PDFArray);

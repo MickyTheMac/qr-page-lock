@@ -8,3 +8,4 @@ export * from "./prepare";
 export * from "./verify";
 export * from "./sign";
 export * from "./service";
+export * from "./evidence";

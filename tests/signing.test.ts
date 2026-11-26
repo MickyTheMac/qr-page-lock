@@ -27,6 +27,7 @@ import {
   serialHex,
   serializeTrustProfile,
   verifyPdf,
+  evidenceReport,
 } from "../src/lib/pagelock";
 
 let sealed: PrepareResult;
@@ -272,5 +273,19 @@ describe("timestamps and revocation", () => {
     const other = await makeTestPki({ rootName: "PageLock Test Root" }); // same name, different key
     const r = await verifyPdf(twice, { trust: { ...pki.trust, crls: [other.crl] } });
     expect(status(r, "sig-revocation")).toBe("inconclusive");
+  });
+});
+
+describe("evidence report", () => {
+  it("is a PDF listing the outcome, signers and every check", async () => {
+    const r = await verifyPdf(twice, { trust: pki.trust });
+    const pdf = await evidenceReport(r, { fileName: "agreement.pdf" });
+    const doc = await PDFDocument.load(pdf);
+    expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
+    const { writeFileSync, mkdirSync } = await import("node:fs");
+    mkdirSync("test-output", { recursive: true });
+    writeFileSync("test-output/evidence-verified.pdf", pdf);
+    const bad = await verifyPdf(T.appendIncrementalUpdate(twice), { trust: pki.trust });
+    writeFileSync("test-output/evidence-altered.pdf", await evidenceReport(bad));
   });
 });

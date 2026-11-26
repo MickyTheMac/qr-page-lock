@@ -74,6 +74,8 @@ export interface ServiceConfig {
   exposeCodes?: boolean;
   allowedOrigin?: string;
   requiredSigners?: number;
+  /** Marks the trust file as DEMO (for the in-browser try-out, whose keys live in the browser). */
+  demo?: boolean;
   now?: () => Date;
 }
 
@@ -299,6 +301,7 @@ export class PageLockService {
     return {
       pagelockTrust: 1,
       name: `${this.cfg.authorityName ?? "PageLock"} Founders Authority`,
+      demo: this.cfg.demo || undefined,
       signerAuthorities: [certPem(this.keys.ca.cert)],
       timestampAuthorities: [certPem(this.keys.ca.cert)],
       revocationLists: [crlPem(await this.currentCrl())],
