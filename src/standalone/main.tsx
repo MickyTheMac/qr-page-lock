@@ -5,6 +5,7 @@ import Link from "./link-shim";
 import Home from "@/app/page";
 import CreatePage from "@/app/create/page";
 import VerifyPage from "@/app/verify/page";
+import SignPage from "@/app/sign/page";
 
 const workerText = document.getElementById("pdf-worker")?.textContent;
 if (workerText) {
@@ -13,10 +14,10 @@ if (workerText) {
   );
 }
 
-type View = "home" | "create" | "verify";
+type View = "home" | "create" | "sign" | "verify";
 const viewFromHash = (): View => {
   const h = location.hash.replace("#", "");
-  return h === "create" || h === "verify" ? h : "home";
+  return h === "create" || h === "sign" || h === "verify" ? h : "home";
 };
 
 function App() {
@@ -39,20 +40,22 @@ function App() {
             PageLock
           </Link>
           <Link href="/create/" className={tab("create")}>Create</Link>
+          <Link href="/sign/" className={tab("sign")}>Sign</Link>
           <Link href="/verify/" className={tab("verify")}>Verify</Link>
-          <span className="ml-auto rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">Prototype · Phase 1</span>
+          <span className="ml-auto rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">Prototype · Phase 2</span>
         </nav>
       </header>
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8">
         {view === "home" && <Home />}
         {view === "create" && <CreatePage />}
+        {view === "sign" && <SignPage />}
         {view === "verify" && <VerifyPage />}
       </main>
       <footer className="border-t border-neutral-200 bg-white">
         <div className="mx-auto max-w-5xl px-4 py-4 text-xs leading-relaxed text-neutral-500">
-          Your documents are processed only in this browser tab. Nothing is uploaded, stored or tracked. PageLock is a
-          prototype: it shows whether pages were changed, not who signed, and it is not legal advice or proof of
-          enforceability.
+          Your documents are processed only in this browser tab and are never uploaded. Signing sends only hashes to the
+          timestamp service, and the sign-off log receives only fingerprints, never wording. PageLock is a prototype: it
+          is not legal advice or proof of enforceability.
         </div>
       </footer>
     </div>

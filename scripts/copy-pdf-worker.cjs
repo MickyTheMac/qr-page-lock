@@ -2,4 +2,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const src = require.resolve("pdfjs-dist/build/pdf.worker.min.mjs");
-fs.copyFileSync(src, path.join(__dirname, "..", "public", "pdf.worker.min.mjs"));
+const dir = path.join(__dirname, "..", "public");
+fs.mkdirSync(dir, { recursive: true });
+fs.copyFileSync(src, path.join(dir, "pdf.worker.min.mjs"));

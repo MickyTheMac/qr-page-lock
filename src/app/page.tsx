@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const LEVELS: [string, string, string][] = [
-  ["VERIFIED", "bg-emerald-600", "Content and the required trusted signatures all pass. (Needs signing, coming in Phase 2.)"],
+  ["VERIFIED", "bg-emerald-600", "Every page is intact and both founders have valid, trusted, timestamped signatures on this exact file."],
   ["REFERENCE MATCH", "bg-emerald-500", "Every page matches the trusted reference you kept. Who signed is not established."],
   ["INTERNALLY CONSISTENT", "bg-sky-600", "The seals agree with each other, but nothing trusted was checked."],
   ["ALTERED / INVALID", "bg-red-600", "A page, the order or the reference does not match."],
@@ -19,7 +19,7 @@ export default function Home() {
           up straight away.
         </p>
       </section>
-      <section className="grid gap-4 sm:grid-cols-2">
+      <section className="grid gap-4 sm:grid-cols-3">
         <Link href="/create/" className="group rounded-xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:border-neutral-400">
           <div className="text-sm font-medium text-neutral-500">Step 1</div>
           <div className="mt-1 text-xl font-semibold">Create a sealed copy</div>
@@ -28,8 +28,17 @@ export default function Home() {
           </p>
           <div className="mt-4 text-sm font-medium text-neutral-900 group-hover:underline">Start →</div>
         </Link>
-        <Link href="/verify/" className="group rounded-xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:border-neutral-400">
+        <Link href="/sign/" className="group rounded-xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:border-neutral-400">
           <div className="text-sm font-medium text-neutral-500">Step 2</div>
+          <div className="mt-1 text-xl font-semibold">Both founders sign</div>
+          <p className="mt-2 text-sm text-neutral-600">
+            Each founder reads every page, agrees once to the whole document and adds a digital signature. The sign-off is
+            logged: signed, then double signed.
+          </p>
+          <div className="mt-4 text-sm font-medium text-neutral-900 group-hover:underline">Sign →</div>
+        </Link>
+        <Link href="/verify/" className="group rounded-xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:border-neutral-400">
+          <div className="text-sm font-medium text-neutral-500">Step 3</div>
           <div className="mt-1 text-xl font-semibold">Check a copy</div>
           <p className="mt-2 text-sm text-neutral-600">
             Choose a sealed PDF and, ideally, the reference file you kept. PageLock checks every page and tells you what it found.

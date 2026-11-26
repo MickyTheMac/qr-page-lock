@@ -70,11 +70,11 @@ digest is what defeats that.
 Checks: file readable · no extra revisions · no active content · every page sealed · sealed structure intact
 · content matches each fingerprint · same document ID · count and order · neighbour links START↔…↔END ·
 embedded manifest binds the sequence · trusted reference (optional) · exact file bytes (with reference file)
-· signatures (Phase 2).
+· signatures (Phase 2, section 8).
 
 | Result | When |
 | --- | --- |
-| VERIFIED | Content and required trusted signatures pass (Phase 2; never shown in Phase 1) |
+| VERIFIED | All content checks pass and every signature check passes for the required number of distinct trusted signers (section 8) |
 | REFERENCE MATCH | All checks pass and the trusted reference matches. Signer identity not established |
 | INTERNALLY CONSISTENT | All checks pass, no trusted reference given |
 | ALTERED / INVALID | Any check fails |
@@ -97,4 +97,49 @@ Tip: "Print to PDF" usually produces an acceptable file.
 - QR modules are ~0.4 mm. Fine for on-screen and digital checks; phone scanning of printed pages is Phase 3
   and may need a larger footer.
 - A printed QR identifies the expected page; it cannot authenticate the ink around it.
-- No signatures yet, so nothing proves who agreed.
+- Signer identity is only as strong as the authority in the trust file (section 8).
+
+## 8. Signing (Phase 2)
+
+### 8.1 Signature format
+- **PAdES baseline B-T**: `/SubFilter /ETSI.CAdES.detached`, CMS SignedData with `content-type`, `message-digest`
+  and `signing-certificate-v2` signed attributes, plus an RFC 3161 `signature-time-stamp` unsigned attribute.
+  ECDSA P-256 with SHA-256. Built with PKI.js 3.4.3 (pinned).
+- Each signature is a new **incremental revision**: an invisible signature field (`/Rect [0 0 0 0]`, no appearance)
+  on the last page, its `/Sig` dictionary, and the `/AcroForm` entries pointing to it. Nothing that draws is touched,
+  so page fingerprints are identical before and after signing. Earlier bytes are never rewritten.
+- The signed `/Reason` is the exact consent statement, naming the page count, document ID and manifest digest:
+  `PageLock consent: I have reviewed all N pages of document <ID> and agree to the whole document. Document
+  fingerprint (manifest digest): <digest>.` Agreement is once per document (decided 26 Nov 2026).
+- Signing refuses to run without explicit consent (two ticks in the app) and refuses copies that do not verify.
+- Interoperability: pyHanko 0.29 (an independent PAdES validator) reports both signatures
+  `INTACT:TRUSTED, TIMESTAMP_TOKEN<INTACT:TRUSTED>` (`scripts/interop/validate_pyhanko.py`).
+
+### 8.2 Verification
+Revision 1 (up to the first `%%EOF`) is the sealed original; all Phase 1 checks run on it, and the reference file's
+exact-file hash is compared with it. Then, for each later revision:
+
+| Check | Fails when | Inconclusive when |
+| --- | --- | --- |
+| Only signatures were added after sealing | a revision adds or changes anything except one invisible signature field, its signature, the form list, the catalog's `/AcroForm` and the page's `/Annots` | |
+| Each signature covers the whole file as signed | byte range has gaps, does not end at its revision, or bytes follow the last signature | |
+| Mathematically valid | CMS signature or message digest wrong, certificate not bound | |
+| Consent | statement missing or names another document | |
+| Trusted authority | | certificate does not chain to the trust file at the trusted time |
+| Not revoked | revoked before the timestamp | no valid CRL from the issuer |
+| Trusted timestamp | token does not match the signature | missing, or authority untrusted |
+| Required signers | | fewer than `requiredSigners` (default 2) distinct fully valid signers |
+
+Outcome: any fail gives ALTERED / INVALID. VERIFIED needs every content check and every signature check to pass with
+a trust file. Otherwise the result falls back to REFERENCE MATCH or INTERNALLY CONSISTENT, and the signature checks
+show why. PageLock is stricter than general PDF validators: it treats any non-signature revision as tampering.
+
+### 8.3 Trust file (`*.pagelock-trust.json`)
+`signerAuthorities` and `timestampAuthorities` (PEM), `revocationLists` (PEM CRLs), `requiredSigners`,
+`requireTimestamp`. The PageLock service publishes its own at `GET /api/trust`.
+
+### 8.4 Sign-off log
+See `docs/SERVICE.md`. Each founder submits a statement `{documentId, manifestDigest, pageCount, signedPdfSha256,
+counterSigns, signerCertSha256, statedAt}` signed with the same key as their PDF signature. The second founder's
+`counterSigns` is the first entry's hash ("double signed"). Entries form one append-only SHA-256 hash chain; the
+log countersigns and timestamps each. Only the fingerprint and sign-off time are public.

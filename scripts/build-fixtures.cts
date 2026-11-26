@@ -3,7 +3,16 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { makeSampleAgreement } from "../tests/helpers";
 import * as T from "../tests/tamper";
-import { parseReference, preparePdf, serializeManifestFile, verifyPdf } from "../src/lib/pagelock";
+import {
+  addSignature,
+  localTimestampSource,
+  makeTestPki,
+  parseReference,
+  preparePdf,
+  serializeManifestFile,
+  serializeTrustProfile,
+  verifyPdf,
+} from "../src/lib/pagelock";
 
 (async () => {
   const dir = join(__dirname, "..", "fixtures");
@@ -51,6 +60,38 @@ import { parseReference, preparePdf, serializeManifestFile, verifyPdf } from "..
     lines.push(`| ${name} | ${note} | ${a} | ${b} |`);
   }
   writeFileSync(join(dir, "01-sealed-genuine.pagelock-reference.json"), serializeManifestFile(g.manifest));
+
+  // Phase 2: signed copies, with a TEST authority (its keys are thrown away; never use it for real signatures).
+  const pki = await makeTestPki({ rootName: "PageLock TEST fixtures authority", founders: [{ cn: "Founder A (test)" }, { cn: "Founder B (test)" }] });
+  const stranger = await makeTestPki({ rootName: "Unknown CA" });
+  const ts = localTimestampSource(pki.tsa);
+  const consent = { documentId: fixed.documentId, manifestDigest: g.manifest.manifestDigest, pageCount: 3, accepted: true };
+  const once = await addSignature(g.pdfBytes, { signer: pki.founders[0], consent, timestamp: ts });
+  const twice = await addSignature(once, { signer: pki.founders[1], consent, timestamp: ts });
+  const signed: [string, Uint8Array, string][] = [
+    ["16-signed-by-both.pdf", twice, "Both test founders signed, with timestamps."],
+    ["17-signed-once.pdf", once, "Only founder A signed (1 of 2)."],
+    ["18-edited-after-signing.pdf", T.appendIncrementalUpdate(twice), "Saved again by an editor after both signatures."],
+    ["19-untrusted-signer.pdf", await addSignature(once, { signer: stranger.founders[1], consent, timestamp: ts }), "Second signature from a certificate the trust file does not know."],
+    ["20-edited-between-signatures.pdf", await addSignature(T.appendIncrementalUpdate(once), { signer: pki.founders[1], consent, timestamp: ts }), "Edited after A signed, then B signed."],
+  ];
+  writeFileSync(join(dir, "test-authority.pagelock-trust.json"), serializeTrustProfile(pki.trust));
+  lines.push(
+    "",
+    "## Signed copies (Phase 2)",
+    "",
+    "Signed with a throwaway TEST authority. Load `test-authority.pagelock-trust.json` on Verify (\"A trust file\") to trust it.",
+    "These files are regenerated with new keys each time `npm run fixtures` runs.",
+    "",
+    "| File | What was done | Result without trust file | Result with test trust file |",
+    "| --- | --- | --- | --- |",
+  );
+  for (const [name, bytes, note] of signed) {
+    writeFileSync(join(dir, name), bytes);
+    const a = (await verifyPdf(bytes)).outcome;
+    const b = (await verifyPdf(bytes, { trust: pki.trust })).outcome;
+    lines.push(`| ${name} | ${note} | ${a} | ${b} |`);
+  }
   writeFileSync(join(dir, "README.md"), lines.join("\n") + "\n");
   console.log(lines.join("\n"));
 })();

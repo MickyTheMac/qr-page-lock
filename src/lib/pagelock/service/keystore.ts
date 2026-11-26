@@ -2,7 +2,7 @@
  * Keeps a founder's signing identity in this browser (IndexedDB). The private key is a non-extractable Web Crypto
  * key: pages can use it to sign, but nobody (not even PageLock) can copy it out.
  */
-import { allPem, certFromDer, certFromPem } from "../sign/pki";
+import { allPem, certFingerprint, certFromDer, certFromPem } from "../sign/pki";
 import { Identity } from "./client";
 
 const DB = "pagelock";
@@ -40,7 +40,7 @@ function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T
 
 export async function saveIdentity(i: Identity): Promise<void> {
   const s: Stored = {
-    id: "default",
+    id: `${i.serviceUrl}|${await certFingerprint(i.certificate)}`,
     privateKey: i.privateKey,
     certificatePem: i.certificatePem,
     chainPem: i.chainPem,
@@ -50,23 +50,28 @@ export async function saveIdentity(i: Identity): Promise<void> {
   await tx("readwrite", (st) => st.put(s));
 }
 
-export async function loadIdentity(): Promise<Identity | null> {
+function revive(s: Stored): Identity & { id: string } {
+  return {
+    id: s.id,
+    certificate: certFromPem(s.certificatePem),
+    chain: s.chainPem.flatMap((p) => allPem(p, "CERTIFICATE")).map(certFromDer),
+    privateKey: s.privateKey,
+    certificatePem: s.certificatePem,
+    chainPem: s.chainPem,
+    serviceUrl: s.serviceUrl,
+  };
+}
+
+/** Signing identities saved in this browser for a given service. */
+export async function listIdentities(serviceUrl: string): Promise<(Identity & { id: string })[]> {
   try {
-    const s = await tx<Stored | undefined>("readonly", (st) => st.get("default"));
-    if (!s) return null;
-    return {
-      certificate: certFromPem(s.certificatePem),
-      chain: s.chainPem.flatMap((p) => allPem(p, "CERTIFICATE")).map(certFromDer),
-      privateKey: s.privateKey,
-      certificatePem: s.certificatePem,
-      chainPem: s.chainPem,
-      serviceUrl: s.serviceUrl,
-    };
+    const all = await tx<Stored[]>("readonly", (st) => st.getAll());
+    return all.filter((s) => s.serviceUrl === serviceUrl).map(revive);
   } catch {
-    return null;
+    return [];
   }
 }
 
-export async function forgetIdentity(): Promise<void> {
-  await tx("readwrite", (st) => st.delete("default"));
+export async function forgetIdentity(id: string): Promise<void> {
+  await tx("readwrite", (st) => st.delete(id));
 }
