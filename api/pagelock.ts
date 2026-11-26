@@ -7,10 +7,13 @@
  *   PAGELOCK_MAIL_FROM      e.g. "PageLock <pagelock@yourdomain>" (a sender Resend has verified)
  *   PAGELOCK_ALLOWED_ORIGIN this site's own address, e.g. https://pagelock.vercel.app
  *   PAGELOCK_ADMIN_TOKEN    optional, enables revoking a certificate
+ *   PAGELOCK_EMAIL_PEPPER   optional secret for scrambling vault email addresses (otherwise one is made and kept in the database)
+ *   PAGELOCK_SITE_URL       optional, this site's address for vault invite emails (defaults to PAGELOCK_ALLOWED_ORIGIN)
  */
 import type { PageLockService } from "../src/lib/pagelock/service/service";
 import { serviceFromEnv } from "../server/config";
 import { PgStore } from "../server/pg-store";
+import { PgVaultStore } from "../server/pg-vault-store";
 
 let ready: Promise<PageLockService> | null = null;
 
@@ -18,7 +21,11 @@ function service(): Promise<PageLockService> {
   ready ??= (async () => {
     const env = process.env;
     if (!env.PAGELOCK_DATABASE_URL || !env.RESEND_API_KEY) throw new Error("not configured");
-    return serviceFromEnv(await PgStore.connect(env.PAGELOCK_DATABASE_URL, { max: 1 }), env);
+    const [store, vault] = await Promise.all([
+      PgStore.connect(env.PAGELOCK_DATABASE_URL, { max: 1 }),
+      PgVaultStore.connect(env.PAGELOCK_DATABASE_URL, { max: 1 }),
+    ]);
+    return serviceFromEnv(store, env, undefined, vault);
   })();
   ready.catch(() => (ready = null)); // try again on the next request
   return ready;

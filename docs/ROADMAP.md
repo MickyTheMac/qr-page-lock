@@ -39,6 +39,11 @@ digest is already the aggregate of every page. Each founder's sign-off signs tha
 public are each document's fingerprint (manifest digest) and the sign-off time, so anyone can later confirm
 "this exact document was signed off at this time" without learning who signed or what it says.
 
+## Vault (built, in review)
+Encrypted document vault with email-code login: see `docs/VAULT.md`. Built with all eight recommended choices
+(26 Nov 2026). Still to do before advertising it: a verified email domain, `PAGELOCK_EMAIL_PEPPER`, an
+independent security review. Files live in Postgres for now; Cloudflare R2 when volume needs it.
+
 ## Phase 3
-Mobile scanning of printed pages (with stated uncertainty), optional storage, white-label service, API,
+Mobile scanning of printed pages (with stated uncertainty), white-label service, API,
 possible SEQUR integration.

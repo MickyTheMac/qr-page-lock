@@ -2,12 +2,13 @@
 import Link from "next/link";
 import { FileSealIcon, LockIcon, PenIcon, SearchCheckIcon, ShieldCheckIcon } from "./icons";
 
-export type Section = "home" | "create" | "sign" | "verify";
+export type Section = "home" | "create" | "sign" | "verify" | "vault";
 
 const NAV: { key: Exclude<Section, "home">; href: string; label: string; Icon: typeof LockIcon }[] = [
   { key: "create", href: "/create/", label: "Create", Icon: FileSealIcon },
   { key: "sign", href: "/sign/", label: "Sign", Icon: PenIcon },
   { key: "verify", href: "/verify/", label: "Verify", Icon: SearchCheckIcon },
+  { key: "vault", href: "/vault/", label: "Vault", Icon: LockIcon },
 ];
 
 export function SiteHeader({ active }: { active: Section }) {
@@ -25,7 +26,7 @@ export function SiteHeader({ active }: { active: Section }) {
             key={key}
             href={href}
             aria-current={active === key ? "page" : undefined}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium transition ${
+            className={`flex items-center gap-1 rounded-lg px-2 py-2 text-sm font-medium transition sm:gap-1.5 sm:px-2.5 ${
               active === key ? "bg-indigo-50 text-indigo-700" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >
@@ -47,7 +48,8 @@ export function SiteFooter() {
       <div className="mx-auto flex max-w-5xl gap-3 px-4 py-6 text-xs leading-relaxed text-slate-500">
         <ShieldCheckIcon size={18} className="mt-0.5 shrink-0 text-slate-400" />
         <p>
-          Your documents are processed only in this browser tab and are never uploaded. Signing sends only hashes to the
+          Your documents are processed only in this browser tab. They are uploaded only if you save them to your vault, and
+          then only after being locked on your device, so PageLock cannot read them. Signing sends only hashes to the
           timestamp service, and the sign-off log receives only fingerprints, never wording. PageLock is a prototype: it
           is not legal advice or proof of enforceability.
         </p>

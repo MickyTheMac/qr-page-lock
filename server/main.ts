@@ -17,6 +17,8 @@ import { join } from "node:path";
 import { ServiceStore } from "../src/lib/pagelock/service/service";
 import { serviceFromEnv } from "./config";
 import { PgStore } from "./pg-store";
+import { PgVaultStore } from "./pg-vault-store";
+import { MemoryVaultStore } from "../src/lib/pagelock/vault/service";
 import { LogEntry } from "../src/lib/pagelock/service/log";
 
 class FileStore implements ServiceStore {
@@ -52,14 +54,16 @@ class FileStore implements ServiceStore {
   const store = env.PAGELOCK_DATABASE_URL
     ? await PgStore.connect(env.PAGELOCK_DATABASE_URL)
     : new FileStore(env.PAGELOCK_DATA_DIR ?? join(process.cwd(), "server-data"));
-  const service = await serviceFromEnv(store, env);
+  // The vault keeps locked documents in Postgres; without a database it lives in memory (lost on restart).
+  const vault = env.PAGELOCK_DATABASE_URL ? await PgVaultStore.connect(env.PAGELOCK_DATABASE_URL) : new MemoryVaultStore();
+  const service = await serviceFromEnv(store, env, undefined, vault);
   const port = Number(env.PORT ?? 8787);
   createServer(async (req, res) => {
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const c of req) {
       size += (c as Buffer).length;
-      if (size > 128 * 1024) {
+      if (size > 5 * 1024 * 1024) {
         res.writeHead(413).end();
         return;
       }

@@ -3,6 +3,7 @@
  * and the Vercel function (api/pagelock.ts).
  */
 import { Mailer, PageLockService, ServiceStore } from "../src/lib/pagelock/service/service";
+import { VaultService, VaultStore } from "../src/lib/pagelock/vault/service";
 
 export const consoleMailer: Mailer = {
   async send(to, subject, text) {
@@ -23,10 +24,20 @@ export function resendMailer(key: string, from: string): Mailer {
   };
 }
 
-export function serviceFromEnv(store: ServiceStore, env: NodeJS.ProcessEnv, mailer?: Mailer): Promise<PageLockService> {
+export async function serviceFromEnv(store: ServiceStore, env: NodeJS.ProcessEnv, mailer?: Mailer, vaultStore?: VaultStore): Promise<PageLockService> {
+  mailer ??= env.RESEND_API_KEY ? resendMailer(env.RESEND_API_KEY, env.PAGELOCK_MAIL_FROM ?? "PageLock <onboarding@resend.dev>") : consoleMailer;
+  const vault = vaultStore
+    ? await VaultService.create({
+        store: vaultStore,
+        mailer,
+        emailPepper: env.PAGELOCK_EMAIL_PEPPER || undefined,
+        siteUrl: env.PAGELOCK_SITE_URL || env.PAGELOCK_ALLOWED_ORIGIN || undefined,
+      })
+    : undefined;
   return PageLockService.create({
     store,
-    mailer: mailer ?? (env.RESEND_API_KEY ? resendMailer(env.RESEND_API_KEY, env.PAGELOCK_MAIL_FROM ?? "PageLock <onboarding@resend.dev>") : consoleMailer),
+    mailer,
+    vault,
     adminToken: env.PAGELOCK_ADMIN_TOKEN || undefined,
     allowedOrigin: env.PAGELOCK_ALLOWED_ORIGIN || undefined,
   });

@@ -56,6 +56,8 @@ Vercel environment variables:
 | `PAGELOCK_ALLOWED_ORIGIN` | the site's own address, e.g. `https://pagelock-xyz.vercel.app` |
 | `NEXT_PUBLIC_PAGELOCK_SERVICE_URL` | the same address (built into the web app, so redeploy after changing it) |
 | `PAGELOCK_ADMIN_TOKEN` | optional, a long random string; enables certificate revocation |
+| `PAGELOCK_EMAIL_PEPPER` | optional but recommended before real users, a long random string; scrambles vault email addresses. Never change it once people use the vault |
+| `PAGELOCK_SITE_URL` | optional, the site's address for vault invite emails (defaults to `PAGELOCK_ALLOWED_ORIGIN`) |
 
 Without `PAGELOCK_DATABASE_URL` and `RESEND_API_KEY` the API answers 503 "not set up yet"; without
 `NEXT_PUBLIC_PAGELOCK_SERVICE_URL` the site keeps using the in-browser demo service.
