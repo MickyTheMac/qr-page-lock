@@ -101,6 +101,17 @@ export class PageLockClient {
       throw e;
     }
   }
+
+  /** Completed sign-offs for a document ID (fingerprint and time only). */
+  async publicByDocument(documentId: string): Promise<PublicSignOff[]> {
+    const r = await this.call<{ signOffs: PublicSignOff[] }>(`/api/public/doc/${documentId}`);
+    return r.signOffs;
+  }
+}
+
+export interface PublicSignOff {
+  manifestDigest: string;
+  signedOffAt: string;
 }
 
 /** A fetch that answers from an in-page service (offline try-out). */

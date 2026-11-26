@@ -103,6 +103,7 @@ describe("sign-off log: signed, then double signed", () => {
     expect(r.complete).toBe(false);
     firstHash = r.entry.entryHash;
     expect(await client.publicStatus(facts.manifestDigest)).toEqual({ signedOff: false, signedOffAt: null });
+    expect(await client.publicByDocument(facts.documentId)).toEqual([]);
   });
   it("founder B can see only what to countersign, not who signed", async () => {
     const view = await client.readSignOff(facts.manifestDigest, bob);
@@ -125,6 +126,12 @@ describe("sign-off log: signed, then double signed", () => {
     const body = await pub.json();
     expect(Object.keys(body).sort()).toEqual(["manifestDigest", "signedOff", "signedOffAt"]);
     expect(JSON.stringify(body)).not.toMatch(/Alice|Bob|example\.com/);
+    // Phone scan of the last page: lookup by the printed document ID shows the same two facts only.
+    const byDoc = await (await service.handle(new Request(`https://x/api/public/doc/${facts.documentId}`))).json();
+    expect(byDoc.signOffs).toHaveLength(1);
+    expect(Object.keys(byDoc.signOffs[0]).sort()).toEqual(["manifestDigest", "signedOffAt"]);
+    expect(byDoc.signOffs[0].manifestDigest).toBe(facts.manifestDigest);
+    expect(JSON.stringify(byDoc)).not.toMatch(/Alice|Bob|example\.com/);
   });
   it("founders can read and independently check the whole log", async () => {
     const view = await client.readSignOff(facts.manifestDigest, alice);

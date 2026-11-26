@@ -59,7 +59,8 @@ describe("genuine documents", () => {
     expect(genuine.manifest.body.pages[2].next).toBe("END");
   });
   it("QR payload contains no document wording", () => {
-    for (const p of genuine.pages) expect(p.payload).toMatch(/^PL1:[0-9A-Z]{24}:\d+:\d+(:[0-9A-F]{64}|:START|:END){3}$/);
+    for (const p of genuine.pages)
+      expect(p.payload).toMatch(/^(HTTPS:\/\/PAGELOCK-INDOL\.VERCEL\.APP\/C\/)?PL1:[0-9A-Z]{24}:\d+:\d+(:[0-9A-F]{64}|:START|:END){3}(:[0-9A-F]{16})?$/);
   });
 });
 

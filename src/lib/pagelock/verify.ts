@@ -443,6 +443,8 @@ export async function verifyPdf(input: Uint8Array, opts: VerifyOptions = {}): Pr
       if (p.computedHash && e.hash !== p.computedHash) mFails.push(`Page ${p.position} does not match page ${i + 1} in the embedded manifest.`);
       if (p.payload && (e.hash !== p.payload.hash || e.prev !== p.payload.prev || e.next !== p.payload.next))
         mFails.push(`Page ${p.position}'s seal disagrees with the embedded manifest.`);
+      if (p.payload?.fingerprintPrefix && embedded.digest && !embedded.digest.startsWith(p.payload.fingerprintPrefix))
+        mFails.push(`Page ${p.position}'s web link names a different document fingerprint.`);
     });
   }
   add(
