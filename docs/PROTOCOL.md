@@ -39,7 +39,8 @@ PLFoot   = form XObject: BBox [0 0 W F] (clips everything to the footer band)
 
 | Layout | F | Notes |
 | --- | --- | --- |
-| 2 (current) | 108 pt (1.5 in) | Nothing drawn in the bottom 0.5 in or within 0.5 in of the sides, so a printer's unprintable margin cannot cut off the QR code or text. "Page x of y" appears once, right-aligned just below the separator line. |
+| 3 (current) | 82 pt (about 1.14 in) | Nothing drawn in the bottom 0.25 in (6.35 mm; most printers only lose the last 3 to 5 mm) or within 0.5 in of the sides. QR drawn 56 pt square without a built-in white border (same module size as layout 2; the surrounding band is white). Text in two columns: "PageLock" and "Page x of y" on the top row, document ID and short fingerprint on the second, disclaimer below. |
+| 2 | 108 pt (1.5 in) | Nothing drawn in the bottom 0.5 in or within 0.5 in of the sides, so a printer's unprintable margin cannot cut off the QR code or text. "Page x of y" appears once, right-aligned just below the separator line. |
 | 1 | 72 pt (1 in) | Original layout. The QR code came within ~0.05 in of the bottom edge. Still accepted by the verifier so documents sealed with it keep verifying. |
 
 All pages in one document must use the same layout. Layout changes do not change page fingerprints, the QR payload or the manifest.

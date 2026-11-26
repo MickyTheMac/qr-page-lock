@@ -52,17 +52,22 @@ export function parsePayload(text: string): QrPayload | null {
 export const QUIET_ZONE = 4;
 
 /** QR as a 1-bit DeviceGray bitmap, 1 pixel per module, with quiet zone. 0 = black. */
-export function qrBitmap(text: string): { size: number; bits: Uint8Array } {
+/**
+ * QR as a 1-bit DeviceGray bitmap, 1 pixel per module. `quiet` is the white border built into
+ * the image: layouts 1-2 used 4 modules; layout 3 uses 0 and leaves real white space around the
+ * code instead, so the printed code is smaller with the same module size.
+ */
+export function qrBitmap(text: string, quiet: number = QUIET_ZONE): { size: number; bits: Uint8Array } {
   const qr = QRCode.create(text, { errorCorrectionLevel: "M" });
   const m = qr.modules.size;
-  const size = m + QUIET_ZONE * 2;
+  const size = m + quiet * 2;
   const rowBytes = Math.ceil(size / 8);
   const bits = new Uint8Array(rowBytes * size).fill(0xff);
   for (let y = 0; y < m; y++) {
     for (let x = 0; x < m; x++) {
       if (qr.modules.get(y, x)) {
-        const px = x + QUIET_ZONE;
-        const py = y + QUIET_ZONE;
+        const px = x + quiet;
+        const py = y + quiet;
         bits[py * rowBytes + (px >> 3)] &= ~(0x80 >> (px & 7));
       }
     }
@@ -73,7 +78,7 @@ export function qrBitmap(text: string): { size: number; bits: Uint8Array } {
 /** Decode a 1-bit bitmap (as stored in the PDF) back to text using jsQR. */
 export function decodeQrBitmap(bits: Uint8Array, width: number, height: number): string | null {
   const scale = 4;
-  const pad = 8;
+  const pad = 16; // 4 modules of white around the code, needed when the image has no quiet zone
   const W = width * scale + pad * 2;
   const H = height * scale + pad * 2;
   const rgba = new Uint8ClampedArray(W * H * 4).fill(255);
