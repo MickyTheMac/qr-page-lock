@@ -107,7 +107,7 @@ export default function VaultPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader icon={<LockIcon size={24} />} title="Your vault">
+      <PageHeader tone="slate" icon={<LockIcon size={24} />} title="Your vault">
         Keep your sealed agreements safe and get them back later, on any device. Each file is locked on your own device
         before it is saved, so <strong>PageLock cannot open it</strong>. Only you and the people you share it with can.
       </PageHeader>
