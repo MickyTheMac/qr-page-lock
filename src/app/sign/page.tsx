@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { FileDrop } from "@/components/FileDrop";
 import { PdfPreview } from "@/components/PdfPreview";
 import { BookIcon, CheckCircleIcon, DownloadIcon, EyeIcon, FileIcon, HandshakeIcon, MailIcon, PenIcon, SparkIcon, SpinnerIcon, UserIcon, UsersIcon } from "@/components/icons";
-import { Notice, PageHeader, Step, btnPrimary, btnSecondary, inputCls, linkBtn } from "@/components/ui";
+import { Notice, PageHeader, Step, btnPrimary, btnRow, btnSecondary, inputCls, linkBtn } from "@/components/ui";
 import { baseName, download, readFile } from "@/lib/download";
 import { makeDemo } from "@/lib/demo";
 import { ActiveService, getService } from "@/lib/service-config";
@@ -298,7 +298,7 @@ export default function SignPage() {
             </span>
             <div className="text-lg font-bold text-emerald-950">Signed by {who(me).name}.</div>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <div className="grid gap-2 lg:grid-cols-3">
             <button className={btnPrimary} onClick={() => download(signed, `${baseName(file?.name ?? "agreement")} - signed by ${who(me).name}.pdf`, "application/pdf")}>
               <DownloadIcon size={16} />
               Download the signed PDF

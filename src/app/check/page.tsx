@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { LINK_BASE, PublicSignOff, QrPayload, groupDocId, parsePayload, shortFingerprint } from "@/lib/pagelock";
+import { LINK_BASE, PublicSignOff, QrPayload, groupDocId, parsePayload, parsePhotoLink, shortFingerprint } from "@/lib/pagelock";
 import { getService } from "@/lib/service-config";
 import { PageHeader } from "@/components/ui";
-import { QrIcon } from "@/components/icons";
+import { CameraIcon, QrIcon } from "@/components/icons";
 
 /**
  * Opened when someone scans the LAST page's QR code with a phone (the code is a link to /C/<code>).
@@ -36,7 +36,7 @@ function when(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" });
 }
 
-export default function CheckPage() {
+function DocumentCheck() {
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
@@ -96,7 +96,7 @@ export default function CheckPage() {
         <div className="mt-6 rounded-lg border border-emerald-300 bg-emerald-50 p-4">
           <p className="text-lg font-semibold text-emerald-800">Signed off and logged</p>
           <p className="mt-2 text-sm text-neutral-800">
-            Both signatures for this document were recorded on {when(state.match.signedOffAt)}.
+            Both signatures for this document were recorded on <span className="whitespace-nowrap">{when(state.match.signedOffAt)}</span>.
           </p>
           <p className="mt-2 break-all font-mono text-xs text-neutral-600">Fingerprint {state.match.manifestDigest}</p>
         </div>
@@ -132,6 +132,95 @@ export default function CheckPage() {
             Verify
           </Link>{" "}
           and add the PDF.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The page behind every scanned code: /C/... for a document's last page, /P/... for a sealed photo's strip. */
+export default function CheckPage() {
+  const [mode, setMode] = useState<"doc" | "photo" | null>(null);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- the address is only known in the browser
+  useEffect(() => setMode(/^\/[Pp]\//.test(window.location.pathname) ? "photo" : "doc"), []);
+  if (!mode) return null;
+  return mode === "photo" ? <PhotoRecordCheck /> : <DocumentCheck />;
+}
+
+type PhotoState =
+  | { kind: "loading" }
+  | { kind: "bad" }
+  | { kind: "error"; digest: string }
+  | { kind: "done"; digest: string; sealedAt: string | null; demo: boolean };
+
+/**
+ * Opened when someone scans the QR code on a sealed photo's strip. PageLock only knows the photo's fingerprint and
+ * when it was sealed, so that is all this shows. Checking the picture itself needs the file.
+ */
+function PhotoRecordCheck() {
+  const [state, setState] = useState<PhotoState>({ kind: "loading" });
+  useEffect(() => {
+    const m = /^\/[Pp]\/([^/]+)\/?$/.exec(window.location.pathname);
+    const digest = m ? parsePhotoLink(decodeURIComponent(m[1])) : null;
+    if (!digest) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- the address is only known in the browser
+      setState({ kind: "bad" });
+      return;
+    }
+    (async () => {
+      try {
+        const svc = await getService();
+        const r = await svc.client.publicPhoto(digest);
+        setState({ kind: "done", digest, sealedAt: r?.sealedAt ?? null, demo: svc.demo });
+      } catch {
+        setState({ kind: "error", digest });
+      }
+    })();
+  }, []);
+
+  return (
+    <div className="mx-auto max-w-xl py-2">
+      <PageHeader tone="sky" icon={<CameraIcon size={24} />} title="Sealed photo check">
+        When was this photo sealed?
+      </PageHeader>
+      {state.kind === "loading" && <p className="mt-6 text-neutral-600">Looking up this photo…</p>}
+      {state.kind === "bad" && (
+        <div className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <p className="font-medium">This is not a PageLock photo code we recognise.</p>
+        </div>
+      )}
+      {state.kind !== "loading" && state.kind !== "bad" && (
+        <p className="mt-6 break-all text-sm text-neutral-600">
+          Fingerprint <span className="font-mono">{shortFingerprint(state.digest)}…</span>
+        </p>
+      )}
+      {state.kind === "error" && (
+        <div className="mt-4 rounded-lg border border-neutral-300 bg-neutral-50 p-4">
+          <p className="font-medium">PageLock could not be reached right now.</p>
+          <p className="mt-2 text-sm text-neutral-700">Check your connection and try again in a moment.</p>
+        </div>
+      )}
+      {state.kind === "done" && state.sealedAt && (
+        <div className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 p-4">
+          <p className="text-lg font-semibold text-emerald-800">A photo with this fingerprint was sealed</p>
+          <p className="mt-2 text-sm text-neutral-800">PageLock sealed it on <span className="whitespace-nowrap">{when(state.sealedAt)}</span>.</p>
+        </div>
+      )}
+      {state.kind === "done" && !state.sealedAt && (
+        <div className="mt-4 rounded-lg border border-red-300 bg-red-50 p-4">
+          <p className="text-lg font-semibold text-red-800">No photo with this fingerprint was sealed here</p>
+          <p className="mt-2 text-sm text-neutral-800">Do not rely on this picture.</p>
+        </div>
+      )}
+      {state.kind === "done" && state.demo && <p className="mt-4 text-xs text-amber-700">Demo mode: this site is using the in-browser demo, not the real record.</p>}
+      {state.kind !== "loading" && (
+        <p className="mt-8 text-sm text-neutral-600">
+          This only shows when the photo was sealed. It cannot see the picture in front of you, which could be a different
+          one with this strip pasted on. To check every pixel, open{" "}
+          <Link href="/verify/" className="underline">
+            Check a copy
+          </Link>{" "}
+          and add the original photo file.
         </p>
       )}
     </div>

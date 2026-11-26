@@ -7,6 +7,8 @@ export const btnPrimary =
   "inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-indigo-600/20 transition hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none";
 export const btnSecondary =
   "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 transition hover:border-indigo-400 hover:text-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-50";
+/** Buttons that sit together: always the same width and height (stacked full-width on phones). */
+export const btnRow = "grid gap-2 sm:w-fit sm:grid-flow-col sm:auto-cols-fr";
 export const linkBtn = "font-medium text-indigo-700 underline decoration-indigo-300 underline-offset-2 hover:decoration-indigo-700";
 export const inputCls =
   "w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-50 disabled:text-slate-400";
@@ -17,6 +19,7 @@ const TONES = {
   indigo: "from-indigo-600 via-indigo-700 to-indigo-900 shadow-indigo-900/25",
   violet: "from-violet-600 via-violet-700 to-purple-900 shadow-violet-900/25",
   emerald: "from-emerald-600 via-teal-700 to-teal-900 shadow-teal-900/25",
+  sky: "from-sky-600 via-cyan-700 to-cyan-900 shadow-cyan-900/25",
   slate: "from-slate-700 via-slate-800 to-slate-950 shadow-slate-900/30",
 } as const;
 export type Tone = keyof typeof TONES;
