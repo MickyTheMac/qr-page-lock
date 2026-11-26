@@ -26,6 +26,16 @@ export interface ReadResult {
   source: "machine lines" | "printed fields" | null;
   /** Machine lines only: whether every check digit matched (true means very likely read correctly). */
   checkDigitsOk: boolean | null;
+  /** What the format checks need (see consistency.ts). */
+  raw?: {
+    /** The machine lines as read, cleaned and fitted to length. */
+    mrz?: { format: "TD3" | "TD1"; lines: string[] };
+    /** Printed fields, as read. */
+    surname?: string;
+    given?: string;
+    /** Licence field 4a, YYYY-MM-DD. */
+    issued?: string;
+  };
 }
 
 export const EMPTY_FIELDS: ReadFields = { name: "", number: "", born: "", expires: "" };
@@ -35,7 +45,7 @@ const NOTHING: ReadResult = { fields: { ...EMPTY_FIELDS }, source: null, checkDi
 // ------------------------------------------------------------------ machine-readable lines (ICAO 9303)
 
 const DIGITS: Record<string, string> = { O: "0", Q: "0", D: "0", I: "1", L: "1", Z: "2", S: "5", B: "8", G: "6", T: "7" };
-const toDigits = (s: string) => s.replace(/[OQDILZSBGT]/g, (c) => DIGITS[c]);
+export const toDigits = (s: string) => s.replace(/[OQDILZSBGT]/g, (c) => DIGITS[c]);
 
 /** ICAO check digit: weights 7, 3, 1; < counts 0, A=10 ... Z=35. */
 export function checkDigit(s: string): string {
@@ -96,6 +106,7 @@ function passportLines(lines: string[]): ReadResult | null {
     fields: { name: mrzName(l1.slice(5)), number: number.replace(/<+$/g, "").replace(/</g, ""), born: mrzDate(bornRaw, "born"), expires: mrzDate(expRaw, "expires") },
     source: "machine lines",
     checkDigitsOk: ok,
+    raw: { mrz: { format: "TD3", lines: [l1, l2] } },
   };
 }
 
@@ -113,6 +124,7 @@ function idCardLines(lines: string[]): ReadResult | null {
     fields: { name: mrzName(l3), number: number.replace(/</g, ""), born: mrzDate(bornRaw, "born"), expires: mrzDate(expRaw, "expires") },
     source: "machine lines",
     checkDigitsOk: ok,
+    raw: { mrz: { format: "TD1", lines: [l1, l2, l3] } },
   };
 }
 
@@ -151,6 +163,7 @@ function licenceFields(text: string): ReadResult | null {
   const given = field(/^2\s*[.,]\s*/);
   const born = printedDate(field(/^3\s*[.,]\s*/));
   const expires = printedDate(field(/^4\s*[bB8]\s*[.,]?\s*/));
+  const issued = printedDate(field(/^4\s*[aA]\s*[.,]?\s*/));
   const five = field(/^5\s*[.,]\s*/).toUpperCase().replace(/\s+/g, " ");
   const upper = text.toUpperCase();
   const uk = upper.replace(/\s+/g, " ").match(UK_NUMBER)?.[1];
@@ -158,7 +171,12 @@ function licenceFields(text: string): ReadResult | null {
   const nameOnly = (s: string) => (/^[A-Za-zÀ-ÿ' -]+$/.test(s) ? s.toUpperCase().replace(/\s+/g, " ").trim() : "");
   const name = [nameOnly(given), nameOnly(sur)].filter(Boolean).join(" ");
   if (!name && !number && !born && !expires) return null;
-  return { fields: { name, number, born, expires }, source: "printed fields", checkDigitsOk: null };
+  return {
+    fields: { name, number, born, expires },
+    source: "printed fields",
+    checkDigitsOk: null,
+    raw: { surname: nameOnly(sur), given: nameOnly(given), ...(issued ? { issued } : {}) },
+  };
 }
 
 // ------------------------------------------------------------------

@@ -118,7 +118,8 @@ export function writeStripText(base: RgbImage, record: PhotoSealRecord): RgbImag
     ctx.fillText(text, x, top);
   };
   const looks = record.seal.capture?.looks;
-  const what = record.seal.details.what + (looks?.result === "not-recognised" ? " (not recognised)" : "");
+  const failed = record.seal.capture?.format?.result === "does-not-add-up";
+  const what = record.seal.details.what + (looks?.result === "not-recognised" ? " (not recognised)" : failed ? " (details do not add up)" : "");
   const rows: [string, number, number, string, readonly number[]][] = [
     ["SEALED BY PAGELOCK", 0.17, 800, sans, STRIP_COLORS.text],
     [sealedWhen(record.sealedAt), 0.15, 600, sans, STRIP_COLORS.text],

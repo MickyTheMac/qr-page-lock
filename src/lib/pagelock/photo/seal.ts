@@ -28,6 +28,7 @@ import { TrustProfile } from "../sign/trust";
 import { validatePath } from "../sign/validate";
 import { PngError, decodePng, encodePng, isPng } from "./png";
 import type { LooksCheck } from "./looks";
+import type { FormatCheck } from "./consistency";
 
 export const PHOTO_SEAL_TYPE = "pagelock-photo-seal";
 /** The PNG text chunk that carries the seal. */
@@ -79,6 +80,8 @@ export interface CaptureChecks {
   looks: LooksCheck | null;
   /** Details read off the document on this device, before the person checked them. */
   read?: DetailsRead;
+  /** Whether the details read off the document follow its format rules (check numbers, licence number, dates). */
+  format?: FormatCheck;
 }
 
 export interface DetailsRead {
